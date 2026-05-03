@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChefHat } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MealCard from './MealCard';
 
@@ -8,53 +8,38 @@ const MEAL_TYPES = ['breakfast', 'lunch', 'dinner'];
 
 export default function WeeklyCalendar({ plan, onSwap, onSkip, onUnskip }) {
   const [selectedDay, setSelectedDay] = useState(0);
-  const [viewMode, setViewMode] = useState('week'); // 'week' or 'day'
-  
   const currentDay = DAYS[selectedDay];
-  
-  const nextDay = () => {
-    setSelectedDay((prev) => (prev + 1) % 7);
-  };
-  
-  const prevDay = () => {
-    setSelectedDay((prev) => (prev - 1 + 7) % 7);
-  };
-  
+
+  const nextDay = () => setSelectedDay((prev) => (prev + 1) % 7);
+  const prevDay = () => setSelectedDay((prev) => (prev - 1 + 7) % 7);
+
   if (!plan) {
     return (
       <div className="text-center py-16">
-        <div className="text-6xl mb-4">🍽️</div>
-        <p className="text-gray-500">Loading your delicious plan...</p>
+        <ChefHat className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-500">Loading your plan...</p>
       </div>
     );
   }
-  
+
   return (
     <div>
-      {/* Day Navigation - Mobile */}
       <div className="md:hidden mb-6">
         <div className="flex items-center justify-between bg-white rounded-2xl p-2 shadow-sm border border-gray-100">
-          <button
-            onClick={prevDay}
-            className="p-3 rounded-xl hover:bg-gray-100 transition-colors"
-          >
+          <button onClick={prevDay} className="p-3 rounded-xl hover:bg-gray-100 transition-colors">
             <ChevronLeft className="w-5 h-5 text-gray-600" />
           </button>
-          
+
           <div className="text-center">
             <h3 className="font-bold text-lg text-gray-800">{currentDay}</h3>
             <p className="text-sm text-gray-500">Day {selectedDay + 1} of 7</p>
           </div>
-          
-          <button
-            onClick={nextDay}
-            className="p-3 rounded-xl hover:bg-gray-100 transition-colors"
-          >
+
+          <button onClick={nextDay} className="p-3 rounded-xl hover:bg-gray-100 transition-colors">
             <ChevronRight className="w-5 h-5 text-gray-600" />
           </button>
         </div>
-        
-        {/* Day Pills */}
+
         <div className="flex gap-1 mt-3 overflow-x-auto pb-2 hide-scrollbar">
           {DAYS.map((day, idx) => (
             <button
@@ -70,8 +55,7 @@ export default function WeeklyCalendar({ plan, onSwap, onSkip, onUnskip }) {
             </button>
           ))}
         </div>
-        
-        {/* Mobile Day View */}
+
         <AnimatePresence mode="wait">
           <motion.div
             key={selectedDay}
@@ -88,13 +72,14 @@ export default function WeeklyCalendar({ plan, onSwap, onSkip, onUnskip }) {
                 mealType={type}
                 day={currentDay}
                 onSwap={onSwap}
+                onSkip={onSkip}
+                onUnskip={onUnskip}
               />
             ))}
           </motion.div>
         </AnimatePresence>
       </div>
-      
-      {/* Desktop Week View */}
+
       <div className="hidden md:block">
         <div className="overflow-x-auto">
           <div className="grid grid-cols-7 gap-4 min-w-[1000px]">
@@ -107,7 +92,7 @@ export default function WeeklyCalendar({ plan, onSwap, onSkip, onUnskip }) {
                 }`}>
                   <h3 className="font-semibold">{day}</h3>
                 </div>
-                
+
                 {MEAL_TYPES.map((type) => (
                   <MealCard
                     key={`${day}-${type}`}
@@ -115,6 +100,8 @@ export default function WeeklyCalendar({ plan, onSwap, onSkip, onUnskip }) {
                     mealType={type}
                     day={day}
                     onSwap={onSwap}
+                    onSkip={onSkip}
+                    onUnskip={onUnskip}
                     compact
                   />
                 ))}
@@ -123,7 +110,7 @@ export default function WeeklyCalendar({ plan, onSwap, onSkip, onUnskip }) {
           </div>
         </div>
       </div>
-      
+
       <style>{`
         .hide-scrollbar::-webkit-scrollbar {
           display: none;

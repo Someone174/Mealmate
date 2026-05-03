@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Users, Zap, ArrowRightLeft, XCircle, RotateCcw, Youtube } from 'lucide-react';
+import { Clock, Users, Zap, ArrowRightLeft, XCircle, RotateCcw, Youtube, ChefHat } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -21,6 +21,14 @@ export default function MealCard({ recipe, mealType, day, onSwap, onSkip, onUnsk
     dinner: '🌙 Dinner'
   };
   
+  const RecipeIcon = ({ size = 'large' }) => (
+    recipe.img_src ? (
+      <img src={recipe.img_src} alt="" className="w-full h-full object-cover rounded-[inherit]" />
+    ) : (
+      <ChefHat className={size === 'small' ? 'w-5 h-5 text-white' : 'w-9 h-9 text-gray-400'} />
+    )
+  );
+
   if (compact) {
     return (
       <motion.div
@@ -32,10 +40,10 @@ export default function MealCard({ recipe, mealType, day, onSwap, onSkip, onUnsk
       >
         <Link to={createPageUrl('Recipes') + `?id=${recipe.id}`} className="block">
           <div className="flex items-center gap-3">
-            <div className={`text-3xl p-2 rounded-xl bg-gradient-to-br ${mealTypeColors[mealType]} ${
+            <div className={`w-12 h-12 p-2 rounded-xl bg-gradient-to-br ${mealTypeColors[mealType]} flex items-center justify-center overflow-hidden ${
               isSkipped ? 'grayscale opacity-50' : 'bg-opacity-10'
             }`}>
-              {recipe.image}
+              <RecipeIcon size="small" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs text-gray-500 font-medium">{mealTypeLabels[mealType]}</p>
@@ -130,10 +138,10 @@ export default function MealCard({ recipe, mealType, day, onSwap, onSkip, onUnsk
           )}
           
           <div className="flex justify-between items-start mb-4">
-            <div className={`text-5xl p-3 bg-gray-50 rounded-2xl transition-transform duration-300 ${
+            <div className={`w-20 h-20 p-2 bg-gray-50 rounded-2xl flex items-center justify-center overflow-hidden transition-transform duration-300 ${
               isSkipped ? 'grayscale' : 'group-hover:scale-110'
             }`}>
-              {recipe.image}
+              <RecipeIcon />
             </div>
             {!isSkipped && (
               <span className={`px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r ${mealTypeColors[mealType]} text-white`}>

@@ -1,5 +1,5 @@
-// Mock Price Service for Qatari Grocery Stores
-// Simulates price fetching from Lulu, Carrefour, and Megamart
+// Price Service for Qatari Grocery Stores.
+// Uses /api/prices for configured real sources, then falls back to local estimates.
 
 const STORES = {
   lulu: { name: 'Lulu Hypermarket', color: 'bg-red-50 text-red-700 border-red-200' },
@@ -129,7 +129,30 @@ const generateStorePrices = (basePrice) => {
   };
 };
 
-const buildPriceData = (item) => {
+const buildPriceData = (item, realPriceData = null) => {
+  if (realPriceData?.stores) {
+    const stores = {};
+    Object.entries(realPriceData.stores).forEach(([key, data]) => {
+      stores[key] = {
+        ...data,
+        name: data.name || STORES[key]?.name || key,
+        inStock: data.inStock ?? true,
+        delivery: data.delivery ?? false
+      };
+    });
+    const sorted = Object.entries(stores).sort(([, a], [, b]) => a.price - b.price);
+    const [cheapestKey, cheapestData] = sorted[0];
+    const mostExpensivePrice = sorted[sorted.length - 1][1].price;
+    return {
+      stores,
+      cheapestStore: cheapestKey,
+      cheapestPrice: cheapestData.price,
+      savings: mostExpensivePrice - cheapestData.price,
+      currency: realPriceData.currency || 'QAR',
+      source: realPriceData.source || 'real'
+    };
+  }
+
   const base = BASE_PRICES[item.item] || BASE_PRICES[item.item?.toLowerCase()] || 5.0;
   const rawPrices = generateStorePrices(base);
   const stores = {};
@@ -144,22 +167,48 @@ const buildPriceData = (item) => {
     cheapestStore: cheapestKey,
     cheapestPrice: cheapestData.price,
     savings: mostExpensivePrice - cheapestData.price,
-    currency: 'QAR'
+    currency: 'QAR',
+    source: 'estimate'
   };
+};
+
+const flattenGroceryList = (groceryList) => (
+  Array.isArray(groceryList) ? groceryList : Object.values(groceryList || {}).flat()
+);
+
+const fetchRealPriceMap = async (groceryList) => {
+  const items = flattenGroceryList(groceryList).map(item => item.item).filter(Boolean);
+  if (!items.length) return {};
+
+  const response = await fetch('/api/prices', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  });
+  if (!response.ok) throw new Error(`Price endpoint failed: ${response.status}`);
+  const data = await response.json();
+  return data.prices || {};
 };
 
 export const fetchPricesForGroceryList = async (groceryList) => {
   if (!groceryList) return {};
+  let realPriceMap = {};
+  try {
+    realPriceMap = await fetchRealPriceMap(groceryList);
+  } catch (error) {
+    console.warn('Real price lookup unavailable; using local estimates.', error);
+  }
+
   // Handle aisle-keyed object format (new format)
   if (!Array.isArray(groceryList)) {
     const result = {};
     for (const [aisle, items] of Object.entries(groceryList)) {
-      result[aisle] = items.map(item => ({ ...item, priceData: buildPriceData(item) }));
+      result[aisle] = items.map(item => ({ ...item, priceData: buildPriceData(item, realPriceMap[item.item]) }));
     }
     return result;
   }
   // Legacy flat array
-  return groceryList.map(item => ({ ...item, priceData: buildPriceData(item) }));
+  return groceryList.map(item => ({ ...item, priceData: buildPriceData(item, realPriceMap[item.item]) }));
 };
 
 export const calculateTotalByStore = (pricedList) => {

@@ -4,17 +4,16 @@ import { createPageUrl } from '@/utils';
 import { 
   Settings, LogOut,
   Sparkles, TrendingUp, ChefHat, Share2, Check,
-  ShoppingCart, MessageCircle
+  ShoppingCart, MessageCircle, Hand
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   getCurrentUser,
   logoutUser,
   getMealPlan,
   saveMealPlan,
-  getGroceryList,
   saveGroceryList,
   toggleGroceryItem,
   updateUserPreferences,
@@ -22,7 +21,7 @@ import {
   unskipMeal,
   getUserPlan
 } from '@/components/mealmate/LocalStorageService';
-import { generateWeeklyPlan, compileGroceryList, getRandomRecipe, RECIPES, normalizeDBRecipe, generateWeeklyPlanFromDBRecipes, loadRecipesDB, getAllRecipes } from '@/components/mealmate/MealData';
+import { generateWeeklyPlan, compileGroceryList, getRandomRecipe, generateWeeklyPlanFromDBRecipes, loadRecipesDB, getAllRecipes, normalizeWeeklyPlan } from '@/components/mealmate/MealData';
 import useRecipeScraper from '@/components/mealmate/RecipeScraper';
 import { 
   fetchPricesForGroceryList, 
@@ -64,8 +63,9 @@ export default function Dashboard() {
       }
       setUser(currentUser);
 
-      // Load or generate meal plan â€” prefer DB (scraped) recipes if available
+      // Load or generate meal plan; prefer DB recipes if available.
       let existingPlan = getMealPlan(currentUser.username);
+      if (existingPlan) existingPlan = normalizeWeeklyPlan(existingPlan);
       if (!existingPlan) {
         const dietaryPrefs = currentUser.preferences?.dietary || [];
         const cuisinePrefs = currentUser.preferences?.cuisines || [];
@@ -79,8 +79,8 @@ export default function Dashboard() {
         } else {
           existingPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
         }
-        saveMealPlan(currentUser.username, existingPlan);
       }
+      saveMealPlan(currentUser.username, existingPlan);
       setPlan(existingPlan);
 
       // Compile grocery list
@@ -146,7 +146,7 @@ export default function Dashboard() {
       saveGroceryList(user.username, groceries);
 
       setRefreshing(false);
-      toast.success('Fresh meal plan generated! 🌟');
+      toast.success('Fresh meal plan generated.');
       
       // Fetch new prices
       fetchPrices(groceries);
@@ -189,7 +189,7 @@ export default function Dashboard() {
     setGroceryList(groceries);
     saveGroceryList(user.username, groceries);
     
-    toast.success(`Swapped ${mealType}! Looking good! ðŸ‘¨â€ðŸ³`);
+    toast.success(`Swapped ${mealType}.`);
     
     // Refresh prices after swap
     fetchPrices(groceries);
@@ -214,7 +214,7 @@ export default function Dashboard() {
       setGroceryList(groceries);
       saveGroceryList(user.username, groceries);
       
-      toast.success('Meal skipped! Ingredients removed from list ðŸ“');
+      toast.success('Meal skipped. Ingredients removed from list.');
       
       // Refresh prices
       fetchPrices(groceries);
@@ -232,7 +232,7 @@ export default function Dashboard() {
       setGroceryList(groceries);
       saveGroceryList(user.username, groceries);
       
-      toast.success('Meal restored! Ingredients added back ðŸŽ‰');
+      toast.success('Meal restored. Ingredients added back.');
       
       // Refresh prices
       fetchPrices(groceries);
@@ -258,14 +258,14 @@ export default function Dashboard() {
     setGroceryList(groceries);
     saveGroceryList(user.username, groceries);
     
-    toast.success('Preferences updated! New plan ready! âœ¨');
+    toast.success('Preferences updated. New plan ready.');
     
     // Fetch prices for new plan
     fetchPrices(groceries);
   };
   
   const handleShare = async () => {
-    const shareText = `Check out my MealMate meal plan! ðŸ½ï¸\n\nPlanning healthy meals for ${user?.preferences?.servings || 2} people with preferences: ${user?.preferences?.dietary?.join(', ') || 'All cuisines'}\n\nTry it free at: ${window.location.origin}`;
+    const shareText = `Check out my MealMate meal plan.\n\nPlanning healthy meals for ${user?.preferences?.servings || 2} people with preferences: ${user?.preferences?.dietary?.join(', ') || 'All cuisines'}\n\nTry it free at: ${window.location.origin}`;
     
     if (navigator.share) {
       try {
@@ -296,7 +296,7 @@ export default function Dashboard() {
     if (user.preferences.servings) {
       prefs.push(`${user.preferences.servings} servings`);
     }
-    return prefs.join(' â€¢ ') || 'all cuisines';
+    return prefs.join(' / ') || 'all cuisines';
   };
   
   if (!user || !plan) {
@@ -321,7 +321,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2">
               <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center">
-                <span className="text-white text-xl">ðŸ½ï¸</span>
+                <ChefHat className="w-5 h-5 text-white" />
               </div>
               <span className="font-bold text-xl text-gray-800 hidden sm:block">MealMate</span>
               {scraperStatus && (
@@ -398,7 +398,8 @@ export default function Dashboard() {
                 <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
                   <div>
                     <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-                      Hey {user.username}! ðŸ‘‹
+                      Hey {user.username}!
+                      <Hand className="inline-block w-7 h-7 ml-2 align-[-3px]" />
                     </h1>
                     <p className="text-emerald-100">
                       Here's your weekly plan based on{' '}
@@ -438,7 +439,7 @@ export default function Dashboard() {
                   {progress === 100 && (
                     <p className="text-sm mt-2 flex items-center gap-1">
                       <Sparkles className="w-4 h-4" />
-                      Full week planned! You're all set! ðŸŽ‰
+                      Full week planned. You're all set.
                     </p>
                   )}
                 </div>
@@ -474,7 +475,7 @@ export default function Dashboard() {
                 className="lg:hidden mb-4"
                 onClick={() => setShowGrocery(false)}
               >
-                â† Back to Plan
+                Back to Plan
               </Button>
             )}
             
@@ -512,12 +513,15 @@ export default function Dashboard() {
         isOpen={showChat}
         onClose={() => setShowChat(false)}
         onPlanUpdate={(newDaysPlan) => {
-          setPlan(newDaysPlan);
-          const groceries = compileGroceryList(newDaysPlan, user?.preferences?.servings || 2);
+          const normalizedPlan = normalizeWeeklyPlan(newDaysPlan);
+          setPlan(normalizedPlan);
+          saveMealPlan(user.username, normalizedPlan);
+          const groceries = compileGroceryList(normalizedPlan, user?.preferences?.servings || 2);
           setGroceryList(groceries);
+          saveGroceryList(user.username, groceries);
           fetchPrices(groceries);
           setShowChat(false);
-          toast.success('ðŸŽ‰ AI meal plan applied to your dashboard!');
+          toast.success('AI meal plan applied to your dashboard.');
         }}
       />
     </div>

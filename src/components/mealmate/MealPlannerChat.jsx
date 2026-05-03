@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Loader2, ChefHat, X, Sparkles, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ReactMarkdown from 'react-markdown';
-import { extractCommands, stripCommandBlocks } from '@/components/mealmate/CommandExecutor';
+import { stripCommandBlocks } from '@/components/mealmate/CommandExecutor';
+import { base44 } from '@/api/base44Client';
+import { normalizeWeeklyPlan } from '@/components/mealmate/MealData';
 
 const STARTER_PROMPTS = [
   "Create a 7-day vegetarian meal plan, 1800 cal/day, Mediterranean cuisine, budget 400 QAR",
@@ -16,14 +18,14 @@ function extractMealPlan(content) {
   if (!content) return null;
   const match = content.match(/```MEALPLAN_JSON\s*([\s\S]*?)```/);
   if (!match) return null;
-  try { return JSON.parse(match[1].trim()); } catch { return null; }
+  try { return normalizeWeeklyPlan(JSON.parse(match[1].trim())); } catch { return null; }
 }
 
 function stripMealPlanBlock(content) {
   return content?.replace(/```MEALPLAN_JSON[\s\S]*?```/g, '').trim() || '';
 }
 
-export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate }) {
+export default function MealPlannerChat({ isOpen, onClose, onPlanUpdate }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -36,7 +38,7 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
     if (isOpen && !ready) {
       setMessages([{
         role: 'assistant',
-        content: "Hi! I'm MealMate AI 👨‍🍳\n\nI can create personalized weekly meal plans tailored to your preferences, dietary needs, and budget. What would you like today?",
+        content: "Hi! I'm MealMate AI.\n\nI can create personalized weekly meal plans tailored to your preferences, dietary needs, and budget. What would you like today?",
       }]);
       setReady(true);
     }
@@ -63,47 +65,17 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
     setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history }),
+      const response = await base44.integrations.Core.InvokeLLM({
+        messages: history,
+        prompt: userMsg.content,
       });
+      const fullText = response?.response || response?.content || response?.text || '';
 
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let fullText = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const payload = line.slice(6);
-          if (payload === '[DONE]') break;
-          try {
-            const { text, error } = JSON.parse(payload);
-            if (error) throw new Error(error);
-            if (text) {
-              fullText += text;
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { role: 'assistant', content: fullText };
-                return updated;
-              });
-            }
-          } catch {}
-        }
-      }
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: 'assistant', content: fullText };
+        return updated;
+      });
 
       const extracted = extractMealPlan(fullText);
       if (extracted && onPlanUpdate) {
@@ -117,7 +89,7 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
         const updated = [...prev];
         updated[updated.length - 1] = {
           role: 'assistant',
-          content: "Sorry, something went wrong. Make sure your `ANTHROPIC_API_KEY` is set in `.env.local`.",
+          content: "Sorry, something went wrong while creating the meal plan. Check your Base44 app parameters or try again.",
         };
         return updated;
       });

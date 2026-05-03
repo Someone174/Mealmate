@@ -1,6 +1,8 @@
 ﻿// MealMate Recipe Database - 50+ recipes with full details
 
 let _dbLoadPromise = null;
+export const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+export const MEAL_TYPES = ['breakfast','lunch','dinner'];
 
 // Fetch /recipes-db.json once and merge into RECIPES in-place.
 // All sync functions (getAllRecipes, getRecipeById, etc.) automatically see the data.
@@ -284,7 +286,7 @@ export const normalizeDBRecipe = (r) => {
   return {
     id: r.id || `db_${Date.now()}`,
     name: r.name || r.title || 'Unknown',
-    image: r.image || '???',
+    image: r.image || '',
     prepTime: r.prepTime || r.prep_time || 30,
     servings: r.servings || 2,
     summary: r.summary || r.description || '',
@@ -304,19 +306,40 @@ export const normalizeDBRecipe = (r) => {
   };
 };
 
+export const normalizeWeeklyPlan = (plan) => {
+  if (!plan) return null;
+  if (Array.isArray(plan)) {
+    return Object.fromEntries(plan
+      .filter(dayPlan => dayPlan?.day)
+      .map(dayPlan => [dayPlan.day, {
+        breakfast: dayPlan.breakfast || null,
+        lunch: dayPlan.lunch || null,
+        dinner: dayPlan.dinner || null,
+      }]));
+  }
+  if (plan.days) return normalizeWeeklyPlan(plan.days);
+  return Object.fromEntries(DAYS.map(day => [day, {
+    breakfast: plan[day]?.breakfast || null,
+    lunch: plan[day]?.lunch || null,
+    dinner: plan[day]?.dinner || null,
+  }]));
+};
+
+export const planToDayArray = (plan) => {
+  const normalized = normalizeWeeklyPlan(plan) || {};
+  return DAYS.map(day => ({ day, ...(normalized[day] || {}) }));
+};
+
 export const generateWeeklyPlan = () => {
-  const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-  return days.map(day => ({
-    day,
+  return Object.fromEntries(DAYS.map(day => [day, {
     breakfast: getRandomRecipe('breakfast') || getRandomRecipe(),
     lunch: getRandomRecipe('lunch') || getRandomRecipe(),
     dinner: getRandomRecipe('dinner') || getRandomRecipe(),
-  }));
+  }]));
 };
 
-export const generateWeeklyPlanFromDBRecipes = (recipes, preferences = []) => {
+export const generateWeeklyPlanFromDBRecipes = (recipes, _preferences = []) => {
   if (!recipes?.length) return generateWeeklyPlan();
-  const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   const byType = {
     breakfast: recipes.filter(r => r.meal_type === 'breakfast'),
     lunch: recipes.filter(r => r.meal_type === 'lunch'),
@@ -326,14 +349,19 @@ export const generateWeeklyPlanFromDBRecipes = (recipes, preferences = []) => {
     const pool = byType[type].length ? byType[type] : recipes;
     return pool[Math.floor(Math.random() * pool.length)];
   };
-  return days.map(day => ({ day, breakfast: pick('breakfast'), lunch: pick('lunch'), dinner: pick('dinner') }));
+  return Object.fromEntries(DAYS.map(day => [day, {
+    breakfast: pick('breakfast'),
+    lunch: pick('lunch'),
+    dinner: pick('dinner')
+  }]));
 };
 
 export const compileGroceryList = (weekPlan) => {
   if (!weekPlan) return {};
   const itemMap = {};
-  weekPlan.forEach(dayPlan => {
-    ['breakfast','lunch','dinner'].forEach(t => {
+  planToDayArray(weekPlan).forEach(dayPlan => {
+    MEAL_TYPES.forEach(t => {
+      if (dayPlan[t]?.skipped) return;
       (dayPlan[t]?.ingredients || []).forEach(ing => {
         const key = ing.item?.toLowerCase();
         if (!key) return;
