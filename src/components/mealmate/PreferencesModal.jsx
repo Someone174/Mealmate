@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Leaf, Timer, DollarSign, Users, UtensilsCrossed, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -23,13 +23,15 @@ const cuisineOptions = [
   { id: 'middle-eastern', label: 'Middle Eastern', icon: '🧆' }
 ];
 
+const DEFAULT_PREFS = { dietary: [], servings: 2, cuisines: [], weeklyBudget: 500 };
+
 export default function PreferencesModal({ isOpen, onClose, currentPrefs, onSave }) {
-  const [prefs, setPrefs] = useState(currentPrefs || {
-    dietary: [],
-    servings: 2,
-    cuisines: [],
-    weeklyBudget: 500
-  });
+  const [prefs, setPrefs] = useState(currentPrefs || DEFAULT_PREFS);
+
+  // Sync internal state whenever the modal is opened with fresh props
+  useEffect(() => {
+    if (isOpen) setPrefs(currentPrefs || DEFAULT_PREFS);
+  }, [isOpen, currentPrefs]);
   
   const toggleDietary = (id) => {
     setPrefs(prev => ({

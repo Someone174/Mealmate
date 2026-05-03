@@ -23,6 +23,27 @@ function stripMealPlanBlock(content) {
   return content?.replace(/```MEALPLAN_JSON[\s\S]*?```/g, '').trim() || '';
 }
 
+/**
+ * Convert the AI response shape { days: [{day, breakfast, lunch, dinner}] }
+ * into the canonical dashboard format { Monday: { breakfast, lunch, dinner }, ... }.
+ */
+function aiPlanToWeeklyPlan(extracted) {
+  if (!extracted) return null;
+  const days = extracted.days ?? (Array.isArray(extracted) ? extracted : null);
+  if (!days?.length) return null;
+  const plan = {};
+  days.forEach(d => {
+    if (d.day) {
+      plan[d.day] = {
+        breakfast: d.breakfast ?? null,
+        lunch: d.lunch ?? null,
+        dinner: d.dinner ?? null,
+      };
+    }
+  });
+  return Object.keys(plan).length ? plan : null;
+}
+
 export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -107,9 +128,12 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
 
       const extracted = extractMealPlan(fullText);
       if (extracted && onPlanUpdate) {
-        setAppliedMsg('Plan ready! Click below to apply.');
-        onPlanUpdate(extracted);
-        setTimeout(() => setAppliedMsg(''), 4000);
+        const weeklyPlan = aiPlanToWeeklyPlan(extracted);
+        if (weeklyPlan) {
+          setAppliedMsg('Plan ready! Click below to apply.');
+          onPlanUpdate(weeklyPlan);
+          setTimeout(() => setAppliedMsg(''), 4000);
+        }
       }
     } catch (err) {
       console.error('sendMessage failed', err);
@@ -217,7 +241,12 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
 
                   {plan && onPlanUpdate && (
                     <button
-                      onClick={() => { onPlanUpdate(plan); setAppliedMsg('Plan applied!'); setTimeout(() => setAppliedMsg(''), 3000); }}
+                      onClick={() => {
+                        const weeklyPlan = aiPlanToWeeklyPlan(plan);
+                        if (weeklyPlan) { onPlanUpdate(weeklyPlan); }
+                        setAppliedMsg('Plan applied!');
+                        setTimeout(() => setAppliedMsg(''), 3000);
+                      }}
                       className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm self-start"
                     >
                       <CheckCircle className="w-4 h-4" />

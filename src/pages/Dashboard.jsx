@@ -1,7 +1,7 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { 
+import {
   Settings, LogOut,
   Sparkles, TrendingUp, ChefHat, Share2, Check,
   ShoppingCart, MessageCircle
@@ -14,7 +14,6 @@ import {
   logoutUser,
   getMealPlan,
   saveMealPlan,
-  getGroceryList,
   saveGroceryList,
   toggleGroceryItem,
   updateUserPreferences,
@@ -22,12 +21,20 @@ import {
   unskipMeal,
   getUserPlan
 } from '@/components/mealmate/LocalStorageService';
-import { generateWeeklyPlan, compileGroceryList, getRandomRecipe, RECIPES, normalizeDBRecipe, generateWeeklyPlanFromDBRecipes, loadRecipesDB, getAllRecipes } from '@/components/mealmate/MealData';
+import {
+  generateWeeklyPlan,
+  compileGroceryList,
+  getRandomRecipe,
+  generateWeeklyPlanFromDBRecipes,
+  loadRecipesDB,
+  getAllRecipes,
+  normalizePlanFormat
+} from '@/components/mealmate/MealData';
 import useRecipeScraper from '@/components/mealmate/RecipeScraper';
-import { 
-  fetchPricesForGroceryList, 
-  calculateTotalByStore, 
-  getCheapestStoreForList 
+import {
+  fetchPricesForGroceryList,
+  calculateTotalByStore,
+  getCheapestStoreForList
 } from '@/components/mealmate/PriceService';
 import WeeklyCalendar from '@/components/mealmate/WeeklyCalendar';
 import GroceryList from '@/components/mealmate/GroceryList';
@@ -51,7 +58,6 @@ export default function Dashboard() {
   const [scraperStatus, setScraperStatus] = useState('');
   const [showChat, setShowChat] = useState(false);
 
-  // Mount background recipe scraper (initial load + every 4 min refresh)
   useRecipeScraper({ onStatusUpdate: setScraperStatus });
 
   useEffect(() => {
@@ -64,215 +70,158 @@ export default function Dashboard() {
       }
       setUser(currentUser);
 
-      // Load or generate meal plan â€” prefer DB (scraped) recipes if available
-      let existingPlan = getMealPlan(currentUser.username);
-      if (!existingPlan) {
-        const dietaryPrefs = currentUser.preferences?.dietary || [];
-        const cuisinePrefs = currentUser.preferences?.cuisines || [];
-        const budget = currentUser.preferences?.weeklyBudget || 500;
-        const servings = currentUser.preferences?.servings || 2;
+      // Load existing plan, normalising any legacy format to the canonical object shape
+      let existingPlan = normalizePlanFormat(getMealPlan(currentUser.username));
 
-        // Use CSV recipes from recipes-db.json
-        const dbRaw = getAllRecipes();
-        if (dbRaw.length >= 21) {
-          existingPlan = generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs]);
-        } else {
-          existingPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
-        }
+      if (!existingPlan) {
+        existingPlan = buildNewPlan(currentUser);
         saveMealPlan(currentUser.username, existingPlan);
       }
       setPlan(existingPlan);
 
-      // Compile grocery list
-      const groceries = compileGroceryList(existingPlan, currentUser.preferences?.servings || 2);
+      const groceries = compileGroceryList(existingPlan);
       setGroceryList(groceries);
       saveGroceryList(currentUser.username, groceries);
 
-      // Fetch prices
       fetchPrices(groceries);
     };
     init();
   }, [navigate]);
-  
+
+  /** Build a new plan, preferring DB recipes when enough are available. */
+  const buildNewPlan = (currentUser) => {
+    const dietaryPrefs = currentUser.preferences?.dietary || [];
+    const cuisinePrefs = currentUser.preferences?.cuisines || [];
+    const dbRaw = getAllRecipes();
+    return dbRaw.length >= 21
+      ? generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs])
+      : generateWeeklyPlan();
+  };
+
   const fetchPrices = async (groceries) => {
     if (!groceries) return;
     setLoadingPrices(true);
-    
     try {
       const priced = await fetchPricesForGroceryList(groceries);
       setPricedGroceryList(priced);
-      
       const totals = calculateTotalByStore(priced);
       setStoreTotals(totals);
-      
       const cheapest = getCheapestStoreForList(totals);
       setCheapestStore(cheapest);
-      
       toast.success(`Prices compared! Save ${cheapest.savings.toFixed(2)} QAR at ${cheapest.storeName}!`);
-    } catch (error) {
+    } catch {
       toast.error('Failed to fetch prices. Please try again.');
     } finally {
       setLoadingPrices(false);
     }
   };
-  
+
   const handleLogout = () => {
     logoutUser();
     navigate(createPageUrl('Landing'));
   };
-  
+
   const handleRegeneratePlan = () => {
     if (!user) return;
     setRefreshing(true);
-
-    const doRegen = async () => {
-        const dietaryPrefs = user.preferences?.dietary || [];
-      const cuisinePrefs = user.preferences?.cuisines || [];
-      const budget = user.preferences?.weeklyBudget || 500;
-      const servings = user.preferences?.servings || 2;
-
-      const dbRaw = getAllRecipes();
-      let newPlan;
-      if (dbRaw.length >= 21) {
-        newPlan = generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs]);
-      } else {
-        newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
-      }
-      setPlan(newPlan);
-      saveMealPlan(user.username, newPlan);
-
-      const groceries = compileGroceryList(newPlan, user.preferences?.servings || 2);
-      setGroceryList(groceries);
-      saveGroceryList(user.username, groceries);
-
-      setRefreshing(false);
-      toast.success('Fresh meal plan generated! 🌟');
-      
-      // Fetch new prices
-      fetchPrices(groceries);
-    };
-    doRegen();
-  };
-  
-  const handleRefreshPrices = () => {
-    if (groceryList) {
-      fetchPrices(groceryList);
-    }
-  };
-  
-  const handleSwapMeal = (day, mealType) => {
-    if (!user || !plan) return;
-
-    const dietaryPrefs = user.preferences?.dietary || [];
-    const cuisinePrefs = user.preferences?.cuisines || [];
-    const allPrefs = [...dietaryPrefs, ...cuisinePrefs];
-    const budget = user.preferences?.weeklyBudget || 500;
-    const servings = user.preferences?.servings || 2;
-    const usedIds = Object.values(plan).flatMap(dayMeals => 
-      Object.values(dayMeals).map(r => r.id)
-    );
-
-    const newRecipe = getRandomRecipe(mealType, allPrefs, usedIds, budget, servings);
-    
-    const newPlan = {
-      ...plan,
-      [day]: {
-        ...plan[day],
-        [mealType]: newRecipe
-      }
-    };
-    
+    const newPlan = buildNewPlan(user);
     setPlan(newPlan);
     saveMealPlan(user.username, newPlan);
-    
-    const groceries = compileGroceryList(newPlan, user.preferences?.servings || 2);
+    const groceries = compileGroceryList(newPlan);
     setGroceryList(groceries);
     saveGroceryList(user.username, groceries);
-    
-    toast.success(`Swapped ${mealType}! Looking good! ðŸ‘¨â€ðŸ³`);
-    
-    // Refresh prices after swap
+    setRefreshing(false);
+    toast.success('Fresh meal plan generated!');
     fetchPrices(groceries);
   };
-  
+
+  const handleRefreshPrices = () => {
+    if (groceryList) fetchPrices(groceryList);
+  };
+
+  const handleSwapMeal = (day, mealType) => {
+    if (!user || !plan) return;
+    const usedIds = Object.values(plan).flatMap(dayMeals =>
+      Object.values(dayMeals).filter(Boolean).map(r => r.id)
+    );
+    const newRecipe = getRandomRecipe(mealType, [], usedIds);
+    if (!newRecipe) return;
+    const newPlan = {
+      ...plan,
+      [day]: { ...plan[day], [mealType]: newRecipe }
+    };
+    setPlan(newPlan);
+    saveMealPlan(user.username, newPlan);
+    const groceries = compileGroceryList(newPlan);
+    setGroceryList(groceries);
+    saveGroceryList(user.username, groceries);
+    toast.success(`Swapped ${mealType}! Enjoy your new meal.`);
+    fetchPrices(groceries);
+  };
+
   const handleToggleGroceryItem = (aisle, idx) => {
     if (!user) return;
     const updated = toggleGroceryItem(user.username, aisle, idx);
-    if (updated) {
-      setGroceryList(updated);
-    }
+    if (updated) setGroceryList(updated);
   };
-  
+
   const handleSkipMeal = (day, mealType) => {
     if (!user) return;
     const updatedPlan = skipMeal(user.username, day, mealType);
     if (updatedPlan) {
       setPlan(updatedPlan);
-      
-      // Update grocery list to exclude skipped meal
-      const groceries = compileGroceryList(updatedPlan, user.preferences?.servings || 2);
+      const groceries = compileGroceryList(updatedPlan);
       setGroceryList(groceries);
       saveGroceryList(user.username, groceries);
-      
-      toast.success('Meal skipped! Ingredients removed from list ðŸ“');
-      
-      // Refresh prices
+      toast.success('Meal skipped — ingredients removed from list.');
       fetchPrices(groceries);
     }
   };
-  
+
   const handleUnskipMeal = (day, mealType) => {
     if (!user) return;
     const updatedPlan = unskipMeal(user.username, day, mealType);
     if (updatedPlan) {
       setPlan(updatedPlan);
-      
-      // Update grocery list to include restored meal
-      const groceries = compileGroceryList(updatedPlan, user.preferences?.servings || 2);
+      const groceries = compileGroceryList(updatedPlan);
       setGroceryList(groceries);
       saveGroceryList(user.username, groceries);
-      
-      toast.success('Meal restored! Ingredients added back ðŸŽ‰');
-      
-      // Refresh prices
+      toast.success('Meal restored — ingredients added back!');
       fetchPrices(groceries);
     }
   };
-  
+
   const handleSavePreferences = (newPrefs) => {
     if (!user) return;
-    
     updateUserPreferences(user.username, newPrefs);
-    setUser(prev => ({ ...prev, preferences: newPrefs }));
-    
-    // Regenerate plan with new preferences
-    const dietaryPrefs = newPrefs.dietary || [];
-    const cuisinePrefs = newPrefs.cuisines || [];
-    const budget = newPrefs.weeklyBudget || 500;
-    const servings = newPrefs.servings || 2;
-    const newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+    const updatedUser = { ...user, preferences: newPrefs };
+    setUser(updatedUser);
+    const newPlan = buildNewPlan(updatedUser);
     setPlan(newPlan);
     saveMealPlan(user.username, newPlan);
-    
-    const groceries = compileGroceryList(newPlan, newPrefs.servings || 2);
+    const groceries = compileGroceryList(newPlan);
     setGroceryList(groceries);
     saveGroceryList(user.username, groceries);
-    
-    toast.success('Preferences updated! New plan ready! âœ¨');
-    
-    // Fetch prices for new plan
+    toast.success('Preferences saved — fresh plan ready!');
     fetchPrices(groceries);
   };
-  
+
+  const handleAIPlanUpdate = (weeklyPlan) => {
+    if (!user || !weeklyPlan) return;
+    setPlan(weeklyPlan);
+    saveMealPlan(user.username, weeklyPlan);
+    const groceries = compileGroceryList(weeklyPlan);
+    setGroceryList(groceries);
+    saveGroceryList(user.username, groceries);
+    fetchPrices(groceries);
+    setShowChat(false);
+    toast.success('AI meal plan applied to your dashboard!');
+  };
+
   const handleShare = async () => {
-    const shareText = `Check out my MealMate meal plan! ðŸ½ï¸\n\nPlanning healthy meals for ${user?.preferences?.servings || 2} people with preferences: ${user?.preferences?.dietary?.join(', ') || 'All cuisines'}\n\nTry it free at: ${window.location.origin}`;
-    
+    const shareText = `Check out my MealMate meal plan!\n\nPlanning meals for ${user?.preferences?.servings || 2} people.\nTry it free at: ${window.location.origin}`;
     if (navigator.share) {
-      try {
-        await navigator.share({ text: shareText });
-      } catch (err) {
-        // User cancelled
-      }
+      try { await navigator.share({ text: shareText }); } catch { /* user cancelled */ }
     } else {
       await navigator.clipboard.writeText(shareText);
       setCopied(true);
@@ -280,58 +229,54 @@ export default function Dashboard() {
       toast.success('Link copied to clipboard!');
     }
   };
-  
-  // Calculate planned meals count
+
   const totalMeals = 21;
-  const plannedMeals = plan ? Object.values(plan).flatMap(d => Object.values(d)).length : 0;
+  const plannedMeals = plan
+    ? Object.values(plan).flatMap(d => Object.values(d).filter(Boolean)).length
+    : 0;
   const progress = (plannedMeals / totalMeals) * 100;
-  
-  // Get preference summary
+
   const getPrefSummary = () => {
     if (!user?.preferences) return 'your preferences';
     const prefs = [];
-    if (user.preferences.dietary?.length) {
-      prefs.push(user.preferences.dietary.slice(0, 2).join(', '));
-    }
-    if (user.preferences.servings) {
-      prefs.push(`${user.preferences.servings} servings`);
-    }
-    return prefs.join(' â€¢ ') || 'all cuisines';
+    if (user.preferences.dietary?.length) prefs.push(user.preferences.dietary.slice(0, 2).join(', '));
+    if (user.preferences.servings) prefs.push(`${user.preferences.servings} servings`);
+    return prefs.join(' · ') || 'all cuisines';
   };
-  
+
   if (!user || !plan) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <motion.div
           animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
           className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full"
         />
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Toaster position="top-center" richColors />
-      
+
       {/* Top Navigation */}
       <nav className="sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2">
               <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center">
-                <span className="text-white text-xl">ðŸ½ï¸</span>
+                <span className="text-white text-xl">🍽️</span>
               </div>
               <span className="font-bold text-xl text-gray-800 hidden sm:block">MealMate</span>
               {scraperStatus && (
                 <span className="hidden lg:flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                  {scraperStatus.slice(0, 40)}{scraperStatus.length > 40 ? '...' : ''}
+                  {scraperStatus.slice(0, 40)}{scraperStatus.length > 40 ? '…' : ''}
                 </span>
               )}
             </div>
-            
+
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -346,7 +291,7 @@ export default function Dashboard() {
                   </span>
                 )}
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -380,7 +325,7 @@ export default function Dashboard() {
           </div>
         </div>
       </nav>
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         <div className="grid lg:grid-cols-[1fr_320px] gap-6">
           {/* Main Content */}
@@ -393,19 +338,19 @@ export default function Dashboard() {
             >
               <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
               <div className="absolute bottom-0 left-0 w-40 h-40 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
-              
+
               <div className="relative">
                 <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
                   <div>
                     <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-                      Hey {user.username}! ðŸ‘‹
+                      Hey {user.username}! 👋
                     </h1>
                     <p className="text-emerald-100">
                       Here's your weekly plan based on{' '}
                       <span className="font-medium text-white">{getPrefSummary()}</span>
                     </p>
                   </div>
-                  
+
                   <div className="flex gap-2">
                     <Button
                       onClick={handleShare}
@@ -424,7 +369,7 @@ export default function Dashboard() {
                     </Button>
                   </div>
                 </div>
-                
+
                 {/* Progress Bar */}
                 <div className="bg-white/20 rounded-2xl p-4">
                   <div className="flex items-center justify-between mb-2">
@@ -438,13 +383,13 @@ export default function Dashboard() {
                   {progress === 100 && (
                     <p className="text-sm mt-2 flex items-center gap-1">
                       <Sparkles className="w-4 h-4" />
-                      Full week planned! You're all set! ðŸŽ‰
+                      Full week planned — you're all set!
                     </p>
                   )}
                 </div>
               </div>
             </motion.div>
-            
+
             {/* Weekly Calendar */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -452,20 +397,31 @@ export default function Dashboard() {
               transition={{ delay: 0.1 }}
               className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100"
             >
-              <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                <ChefHat className="w-6 h-6 text-emerald-500" />
-                Your Weekly Menu
-              </h2>
-              
-              <WeeklyCalendar 
-                plan={plan} 
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <ChefHat className="w-6 h-6 text-emerald-500" />
+                  Your Weekly Menu
+                </h2>
+                <Button
+                  onClick={handleRegeneratePlan}
+                  disabled={refreshing}
+                  variant="outline"
+                  size="sm"
+                  className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                >
+                  {refreshing ? 'Generating…' : 'Regenerate'}
+                </Button>
+              </div>
+
+              <WeeklyCalendar
+                plan={plan}
                 onSwap={handleSwapMeal}
                 onSkip={handleSkipMeal}
                 onUnskip={handleUnskipMeal}
               />
             </motion.div>
           </div>
-          
+
           {/* Sidebar - Grocery List */}
           <div className={`lg:block ${showGrocery ? 'fixed inset-0 z-50 bg-white p-4 overflow-y-auto lg:relative lg:inset-auto lg:bg-transparent lg:p-0' : 'hidden'}`}>
             {showGrocery && (
@@ -474,18 +430,18 @@ export default function Dashboard() {
                 className="lg:hidden mb-4"
                 onClick={() => setShowGrocery(false)}
               >
-                â† Back to Plan
+                ← Back to Plan
               </Button>
             )}
-            
+
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
               className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 sticky top-24"
             >
-              <GroceryList 
-                groceryList={groceryList} 
+              <GroceryList
+                groceryList={groceryList}
                 onToggleItem={handleToggleGroceryItem}
                 pricedList={pricedGroceryList}
                 onRefreshPrices={handleRefreshPrices}
@@ -497,7 +453,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-      
+
       {/* Preferences Modal */}
       <PreferencesModal
         isOpen={showPrefs}
@@ -511,14 +467,7 @@ export default function Dashboard() {
         user={user}
         isOpen={showChat}
         onClose={() => setShowChat(false)}
-        onPlanUpdate={(newDaysPlan) => {
-          setPlan(newDaysPlan);
-          const groceries = compileGroceryList(newDaysPlan, user?.preferences?.servings || 2);
-          setGroceryList(groceries);
-          fetchPrices(groceries);
-          setShowChat(false);
-          toast.success('ðŸŽ‰ AI meal plan applied to your dashboard!');
-        }}
+        onPlanUpdate={handleAIPlanUpdate}
       />
     </div>
   );

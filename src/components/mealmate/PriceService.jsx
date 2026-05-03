@@ -64,14 +64,15 @@ const BASE_PRICES = {
   'Chicken breast': 10.0,
   'Chicken thighs': 8.0,
   'Turkey breast slices': 9.0,
-  'Bacon': 8.0,
   'Salmon fillets': 22.0,
   'Ahi tuna (sushi grade)': 25.0,
+  'Tuna (canned in water)': 4.0,
   'Large shrimp': 18.0,
   'Ground turkey': 10.0,
-  'Pork tenderloin': 12.0,
+  'Beef sirloin': 18.0,
   'Chickpeas (canned)': 2.0,
   'Black beans': 2.0,
+  'Red lentils': 3.5,
 
   // Bakery
   'Whole grain bread': 3.5,
@@ -100,8 +101,32 @@ const BASE_PRICES = {
   'Sesame seeds': 4.0,
   'Coleslaw mix': 3.0,
 
+  // Additional pantry items
+  'Rolled oats': 4.5,
+  'Chia seeds': 7.0,
+  'Maple syrup': 9.0,
+  'Vanilla extract': 5.0,
+  'Baking powder': 2.5,
+  'All-purpose flour': 3.0,
+  'Rice noodles': 4.0,
+  'Rice vinegar': 3.5,
+  'Balsamic glaze': 6.0,
+  'Sun-dried tomatoes': 5.5,
+  'Turmeric': 3.0,
+  'Cumin': 2.5,
+  'Coriander': 2.5,
+  'Smoked paprika': 3.0,
+
   // Seafood
   'Edamame': 5.5,
+
+  // Produce extras
+  'Romaine lettuce': 3.0,
+  'Mango': 4.0,
+  'Mixed salad greens': 4.5,
+  'Red cabbage': 3.0,
+  'Broccoli florets': 4.0,
+  'Corn tortillas': 3.5,
 
   // Frozen
   'Fresh berries': 7.0,

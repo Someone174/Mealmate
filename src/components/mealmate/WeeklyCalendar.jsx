@@ -88,6 +88,8 @@ export default function WeeklyCalendar({ plan, onSwap, onSkip, onUnskip }) {
                 mealType={type}
                 day={currentDay}
                 onSwap={onSwap}
+                onSkip={onSkip}
+                onUnskip={onUnskip}
               />
             ))}
           </motion.div>
@@ -115,6 +117,8 @@ export default function WeeklyCalendar({ plan, onSwap, onSkip, onUnskip }) {
                     mealType={type}
                     day={day}
                     onSwap={onSwap}
+                    onSkip={onSkip}
+                    onUnskip={onUnskip}
                     compact
                   />
                 ))}
