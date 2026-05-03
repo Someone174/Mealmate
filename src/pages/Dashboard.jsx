@@ -29,6 +29,7 @@ import {
   getCheapestStoreForList 
 } from '@/components/mealmate/PriceService';
 import WeeklyCalendar from '@/components/mealmate/WeeklyCalendar';
+import NutritionSummary from '@/components/mealmate/NutritionSummary';
 import GroceryList from '@/components/mealmate/GroceryList';
 import PreferencesModal from '@/components/mealmate/PreferencesModal';
 import MealPlannerChat from '@/components/mealmate/MealPlannerChat';
@@ -168,8 +169,8 @@ export default function Dashboard() {
     const allPrefs = [...dietaryPrefs, ...cuisinePrefs];
     const budget = user.preferences?.weeklyBudget || 500;
     const servings = user.preferences?.servings || 2;
-    const usedIds = Object.values(plan).flatMap(dayMeals => 
-      Object.values(dayMeals).map(r => r.id)
+    const usedIds = Object.values(plan).flatMap(dayMeals =>
+      Object.values(dayMeals).filter(r => r?.id).map(r => r.id)
     );
 
     const newRecipe = getRandomRecipe(mealType, allPrefs, usedIds, budget, servings);
@@ -281,9 +282,11 @@ export default function Dashboard() {
     }
   };
   
-  // Calculate planned meals count
+  // Calculate planned meals count (exclude null and skipped slots)
   const totalMeals = 21;
-  const plannedMeals = plan ? Object.values(plan).flatMap(d => Object.values(d)).length : 0;
+  const plannedMeals = plan
+    ? Object.values(plan).flatMap(d => Object.values(d)).filter(m => m && !m.skipped).length
+    : 0;
   const progress = (plannedMeals / totalMeals) * 100;
   
   // Get preference summary
@@ -446,6 +449,9 @@ export default function Dashboard() {
               </div>
             </motion.div>
             
+            {/* Nutrition Summary */}
+            <NutritionSummary plan={plan} />
+
             {/* Weekly Calendar */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}

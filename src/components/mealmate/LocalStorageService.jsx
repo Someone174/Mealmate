@@ -5,7 +5,8 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'mealmate_current_user',
   MEAL_PLANS: 'mealmate_plans',
   FAVORITES: 'mealmate_favorites',
-  GROCERY_LISTS: 'mealmate_grocery'
+  GROCERY_LISTS: 'mealmate_grocery',
+  RATINGS: 'mealmate_ratings',
 };
 
 // Initialize demo data if not exists
@@ -199,4 +200,22 @@ export const resetAllData = () => {
 // Check if user is logged in
 export const isLoggedIn = () => {
   return !!localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+};
+
+// Meal Ratings (1–5 stars per recipe per user)
+export const saveMealRating = (username, recipeId, rating) => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.RATINGS) || '{}');
+  if (!all[username]) all[username] = {};
+  all[username][recipeId] = rating;
+  localStorage.setItem(STORAGE_KEYS.RATINGS, JSON.stringify(all));
+};
+
+export const getMealRating = (username, recipeId) => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.RATINGS) || '{}');
+  return all[username]?.[recipeId] ?? 0;
+};
+
+export const getAllRatings = (username) => {
+  const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.RATINGS) || '{}');
+  return all[username] || {};
 };

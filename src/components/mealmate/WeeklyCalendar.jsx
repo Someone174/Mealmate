@@ -6,8 +6,14 @@ import MealCard from './MealCard';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner'];
 
+// Map JS getDay() (0=Sun…6=Sat) to our Monday-first index
+function todayIndex() {
+  const d = new Date().getDay(); // 0=Sun, 1=Mon...6=Sat
+  return d === 0 ? 6 : d - 1;   // 0=Mon … 6=Sun
+}
+
 export default function WeeklyCalendar({ plan, onSwap, onSkip, onUnskip }) {
-  const [selectedDay, setSelectedDay] = useState(0);
+  const [selectedDay, setSelectedDay] = useState(todayIndex);
   const currentDay = DAYS[selectedDay];
 
   const nextDay = () => setSelectedDay((prev) => (prev + 1) % 7);
@@ -86,7 +92,7 @@ export default function WeeklyCalendar({ plan, onSwap, onSkip, onUnskip }) {
             {DAYS.map((day, dayIdx) => (
               <div key={day} className="space-y-3">
                 <div className={`text-center p-3 rounded-xl ${
-                  dayIdx === new Date().getDay() - 1 || (dayIdx === 6 && new Date().getDay() === 0)
+                  dayIdx === todayIndex()
                     ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
                     : 'bg-gray-100 text-gray-700'
                 }`}>

@@ -275,10 +275,21 @@ export const getAllRecipes = () => [
 export const getRecipeById = (id) =>
   getAllRecipes().find(r => r.id === id) || null;
 
-export const getRandomRecipe = (type) => {
+export const getRandomRecipe = (type, preferences = [], usedIds = []) => {
   const pool = type ? (RECIPES[type] || []) : getAllRecipes();
   if (!pool.length) return null;
-  return pool[Math.floor(Math.random() * pool.length)];
+
+  // Try to honor preferences (dietary/cuisine tags)
+  let filtered = preferences.length
+    ? pool.filter(r => preferences.some(p => r.tags?.includes(p)))
+    : pool;
+  if (!filtered.length) filtered = pool;
+
+  // Prefer recipes not already in the current plan
+  const available = filtered.filter(r => !usedIds.includes(r.id));
+  const candidates = available.length ? available : filtered;
+
+  return candidates[Math.floor(Math.random() * candidates.length)];
 };
 
 export const normalizeDBRecipe = (r) => {
@@ -330,12 +341,21 @@ export const planToDayArray = (plan) => {
   return DAYS.map(day => ({ day, ...(normalized[day] || {}) }));
 };
 
-export const generateWeeklyPlan = () => {
-  return Object.fromEntries(DAYS.map(day => [day, {
-    breakfast: getRandomRecipe('breakfast') || getRandomRecipe(),
-    lunch: getRandomRecipe('lunch') || getRandomRecipe(),
-    dinner: getRandomRecipe('dinner') || getRandomRecipe(),
-  }]));
+export const generateWeeklyPlan = (dietaryPrefs = [], cuisinePrefs = [], _budget = 500, _servings = 2) => {
+  const allPrefs = [...dietaryPrefs, ...cuisinePrefs];
+  const usedIds = [];
+  return Object.fromEntries(DAYS.map(day => {
+    const breakfast = getRandomRecipe('breakfast', allPrefs, usedIds) || getRandomRecipe('breakfast');
+    if (breakfast?.id) usedIds.push(breakfast.id);
+
+    const lunch = getRandomRecipe('lunch', allPrefs, usedIds) || getRandomRecipe('lunch') || getRandomRecipe();
+    if (lunch?.id) usedIds.push(lunch.id);
+
+    const dinner = getRandomRecipe('dinner', allPrefs, usedIds) || getRandomRecipe('dinner') || getRandomRecipe();
+    if (dinner?.id) usedIds.push(dinner.id);
+
+    return [day, { breakfast, lunch, dinner }];
+  }));
 };
 
 export const generateWeeklyPlanFromDBRecipes = (recipes, _preferences = []) => {

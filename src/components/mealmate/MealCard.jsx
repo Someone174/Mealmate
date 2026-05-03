@@ -1,13 +1,33 @@
-import React from 'react';
-import { Clock, Users, Zap, ArrowRightLeft, XCircle, RotateCcw, Youtube, ChefHat } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Clock, Users, Zap, ArrowRightLeft, XCircle, RotateCcw, Youtube, ChefHat, Star } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { getCurrentUser, saveMealRating, getMealRating } from '@/components/mealmate/LocalStorageService';
 
 export default function MealCard({ recipe, mealType, day, onSwap, onSkip, onUnskip, compact = false }) {
   if (!recipe) return null;
-  
+
   const isSkipped = recipe?.skipped;
+  const [hoverStar, setHoverStar] = useState(0);
+  const [rating, setRating] = useState(0);
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (user && recipe?.id) {
+      setRating(getMealRating(user.username, recipe.id));
+    }
+  }, [recipe?.id]);
+
+  const handleRate = (e, stars) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const user = getCurrentUser();
+    if (!user || !recipe?.id) return;
+    const newRating = rating === stars ? 0 : stars; // toggle off if same star clicked
+    setRating(newRating);
+    saveMealRating(user.username, recipe.id, newRating);
+  };
   
   const mealTypeColors = {
     breakfast: 'from-amber-400 to-orange-400',
@@ -21,13 +41,15 @@ export default function MealCard({ recipe, mealType, day, onSwap, onSkip, onUnsk
     dinner: '🌙 Dinner'
   };
   
-  const RecipeIcon = ({ size = 'large' }) => (
-    recipe.img_src ? (
-      <img src={recipe.img_src} alt="" className="w-full h-full object-cover rounded-[inherit]" />
-    ) : (
-      <ChefHat className={size === 'small' ? 'w-5 h-5 text-white' : 'w-9 h-9 text-gray-400'} />
-    )
-  );
+  const RecipeIcon = ({ size = 'large' }) => {
+    if (recipe.img_src) {
+      return <img src={recipe.img_src} alt="" className="w-full h-full object-cover rounded-[inherit]" />;
+    }
+    if (recipe.image) {
+      return <span className={size === 'small' ? 'text-xl' : 'text-5xl'}>{recipe.image}</span>;
+    }
+    return <ChefHat className={size === 'small' ? 'w-5 h-5 text-white' : 'w-9 h-9 text-gray-400'} />;
+  };
 
   if (compact) {
     return (
@@ -205,7 +227,36 @@ export default function MealCard({ recipe, mealType, day, onSwap, onSkip, onUnsk
           )}
         </div>
       </Link>
-      
+
+      {/* Star rating row — outside Link to capture clicks */}
+      {!isSkipped && (
+        <div className="px-5 pb-3 flex items-center gap-1">
+          {[1, 2, 3, 4, 5].map(star => (
+            <button
+              key={star}
+              onMouseEnter={() => setHoverStar(star)}
+              onMouseLeave={() => setHoverStar(0)}
+              onClick={e => handleRate(e, star)}
+              className="p-0.5 transition-transform hover:scale-125"
+              aria-label={`Rate ${star} star`}
+            >
+              <Star
+                className={`w-4 h-4 transition-colors ${
+                  star <= (hoverStar || rating)
+                    ? 'fill-amber-400 text-amber-400'
+                    : 'text-gray-200'
+                }`}
+              />
+            </button>
+          ))}
+          {rating > 0 && (
+            <span className="text-xs text-gray-400 ml-1">
+              {rating === 5 ? 'Love it!' : rating >= 3 ? 'Good' : 'Meh'}
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="px-5 pb-5">
         {isSkipped ? (
           <button

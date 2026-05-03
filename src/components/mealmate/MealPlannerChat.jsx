@@ -78,10 +78,9 @@ export default function MealPlannerChat({ isOpen, onClose, onPlanUpdate }) {
       });
 
       const extracted = extractMealPlan(fullText);
-      if (extracted && onPlanUpdate) {
-        setAppliedMsg('Plan ready! Click below to apply.');
-        onPlanUpdate(extracted);
-        setTimeout(() => setAppliedMsg(''), 4000);
+      if (extracted) {
+        setAppliedMsg('Plan ready! Click the button below to apply it.');
+        setTimeout(() => setAppliedMsg(''), 6000);
       }
     } catch (err) {
       console.error('sendMessage failed', err);

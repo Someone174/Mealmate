@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, Printer, ShoppingCart, ChevronDown, ChevronUp, Sparkles, TrendingDown, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -29,9 +29,20 @@ const aisleColors = {
 };
 
 export default function GroceryList({ groceryList, onToggleItem, pricedList, onRefreshPrices, loadingPrices, storeTotals, cheapestStore }) {
-const [expandedAisles, setExpandedAisles] = useState(
+  const [expandedAisles, setExpandedAisles] = useState(
     Object.keys(groceryList || {}).reduce((acc, key) => ({ ...acc, [key]: true }), {})
   );
+
+  // Expand any new aisles when groceryList changes (e.g. after regenerating plan)
+  useEffect(() => {
+    setExpandedAisles(prev => {
+      const next = { ...prev };
+      Object.keys(groceryList || {}).forEach(key => {
+        if (!(key in next)) next[key] = true;
+      });
+      return next;
+    });
+  }, [groceryList]);
   
   if (!groceryList || Object.keys(groceryList).length === 0) {
     return (
