@@ -30,6 +30,8 @@ import {
 } from '@/components/mealmate/PriceService';
 import WeeklyCalendar from '@/components/mealmate/WeeklyCalendar';
 import GroceryList from '@/components/mealmate/GroceryList';
+import NutritionSummary from '@/components/mealmate/NutritionSummary';
+import TodaysMeals from '@/components/mealmate/TodaysMeals';
 import PreferencesModal from '@/components/mealmate/PreferencesModal';
 import MealPlannerChat from '@/components/mealmate/MealPlannerChat';
 import { toast, Toaster } from 'sonner';
@@ -244,13 +246,16 @@ export default function Dashboard() {
 
     await updateUserPreferences(user.id || user.username, newPrefs);
     setUser(prev => ({ ...prev, preferences: newPrefs }));
-    
-    // Regenerate plan with new preferences
+
+    // Regenerate plan with new preferences (same logic as initial load / regenerate)
     const dietaryPrefs = newPrefs.dietary || [];
     const cuisinePrefs = newPrefs.cuisines || [];
     const budget = newPrefs.weeklyBudget || 500;
     const servings = newPrefs.servings || 2;
-    const newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+    const dbRaw = getAllRecipes();
+    const newPlan = dbRaw.length >= 21
+      ? generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs])
+      : generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
     setPlan(newPlan);
     saveMealPlan(user, newPlan);
     
@@ -457,6 +462,9 @@ export default function Dashboard() {
               </div>
             </motion.div>
             
+            {/* Today's Meals */}
+            <TodaysMeals plan={plan} />
+
             {/* Weekly Calendar */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -468,14 +476,17 @@ export default function Dashboard() {
                 <ChefHat className="w-6 h-6 text-emerald-500" />
                 Your Weekly Menu
               </h2>
-              
-              <WeeklyCalendar 
-                plan={plan} 
+
+              <WeeklyCalendar
+                plan={plan}
                 onSwap={handleSwapMeal}
                 onSkip={handleSkipMeal}
                 onUnskip={handleUnskipMeal}
               />
             </motion.div>
+
+            {/* Weekly Nutrition Summary */}
+            <NutritionSummary plan={plan} servings={user?.preferences?.servings || 2} />
           </div>
           
           {/* Sidebar - Grocery List */}

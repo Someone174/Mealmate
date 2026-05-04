@@ -1,16 +1,17 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { 
-  Search, Filter, X, Clock, ChefHat, 
-  ArrowLeft, SlidersHorizontal, Flame
+import {
+  Search, Filter, X, Clock, ChefHat,
+  ArrowLeft, SlidersHorizontal, Flame, Heart
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getAllRecipes, loadRecipesDB } from '@/components/mealmate/MealData';
+import { getAllRecipes, loadRecipesDB, getRecipeById } from '@/components/mealmate/MealData';
+import { getCurrentUser, getFavorites, removeFavorite } from '@/components/mealmate/LocalStorageService';
 
 
 
@@ -35,9 +36,15 @@ const cuisineTypes = [
 
 export default function RecipesBrowse() {
   const [dbReady, setDbReady] = useState(false);
+  const [activeTab, setActiveTab] = useState('browse'); // 'browse' | 'favorites'
+  const [user, setUser] = useState(null);
+  const [favoriteIds, setFavoriteIds] = useState([]);
 
   useEffect(() => {
     loadRecipesDB().then(() => setDbReady(true));
+    const u = getCurrentUser();
+    setUser(u);
+    if (u) setFavoriteIds(getFavorites(u.username || u.id));
   }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -140,18 +147,133 @@ export default function RecipesBrowse() {
               <ArrowLeft className="w-5 h-5" />
               <span className="font-medium">Back</span>
             </Link>
-            
-            <div className="flex items-center gap-2">
-              <ChefHat className="w-6 h-6 text-emerald-500" />
-              <span className="font-bold text-xl text-gray-800">Browse Recipes</span>
+
+            <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
+              <button
+                onClick={() => setActiveTab('browse')}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === 'browse'
+                    ? 'bg-white text-emerald-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <ChefHat className="w-4 h-4" />
+                Browse
+              </button>
+              <button
+                onClick={() => setActiveTab('favorites')}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === 'favorites'
+                    ? 'bg-white text-red-500 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Heart className="w-4 h-4" />
+                Saved
+                {favoriteIds.length > 0 && (
+                  <span className={`text-xs rounded-full px-1.5 py-0.5 ${
+                    activeTab === 'favorites' ? 'bg-red-100 text-red-500' : 'bg-gray-200 text-gray-500'
+                  }`}>
+                    {favoriteIds.length}
+                  </span>
+                )}
+              </button>
             </div>
-            
+
             <div className="w-20" />
           </div>
         </div>
       </nav>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        {/* Favorites Tab */}
+        {activeTab === 'favorites' && (
+          <div>
+            {favoriteIds.length === 0 ? (
+              <div className="text-center py-20">
+                <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Heart className="w-10 h-10 text-red-300" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-800 mb-2">No saved recipes yet</h3>
+                <p className="text-gray-500 mb-4">Tap the heart icon on any recipe to save it here</p>
+                <Button onClick={() => setActiveTab('browse')} className="bg-emerald-500 hover:bg-emerald-600 text-white">
+                  Browse Recipes
+                </Button>
+              </div>
+            ) : (
+              <>
+                <p className="text-gray-600 mb-4">
+                  <span className="font-bold text-red-500">{favoriteIds.length}</span> saved recipe{favoriteIds.length !== 1 ? 's' : ''}
+                </p>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <AnimatePresence mode="popLayout">
+                    {favoriteIds.map((id, idx) => {
+                      const recipe = getRecipeById(id);
+                      if (!recipe) return null;
+                      return (
+                        <motion.div
+                          key={id}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={{ delay: idx * 0.04 }}
+                          layout
+                          className="relative group"
+                        >
+                          <Link to={`${createPageUrl('Recipes')}?id=${recipe.id}`}>
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-all">
+                              <div className="bg-gradient-to-br from-red-50 to-pink-50 h-32 flex items-center justify-center">
+                                <span className="text-6xl group-hover:scale-110 transition-transform">{recipe.image}</span>
+                              </div>
+                              <div className="p-5">
+                                <h3 className="font-bold text-gray-800 mb-2 line-clamp-1">{recipe.name}</h3>
+                                <p className="text-sm text-gray-500 mb-4 line-clamp-2">{recipe.summary}</p>
+                                <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="w-4 h-4" />
+                                    <span>{recipe.prepTime} min</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Flame className="w-4 h-4 text-orange-500" />
+                                    <span>{recipe.calories} cal</span>
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {recipe.tags.slice(0, 3).map(tag => (
+                                    <Badge key={tag} variant="secondary" className="text-xs">
+                                      {tag.replace(/-/g, ' ')}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              if (user) {
+                                removeFavorite(user.username || user.id, id);
+                                setFavoriteIds(prev => prev.filter(fid => fid !== id));
+                              }
+                            }}
+                            className="absolute top-3 right-3 w-8 h-8 bg-white/90 rounded-full flex items-center justify-center shadow text-red-400 hover:text-red-600 hover:bg-white transition-all opacity-0 group-hover:opacity-100"
+                            title="Remove from favorites"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Browse Tab */}
+        {activeTab === 'browse' && (
+        <div>
         {/* Search and Filter Bar */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6 space-y-4">
           <div className="flex gap-3">
@@ -409,6 +531,8 @@ export default function RecipesBrowse() {
               Clear all filters
             </Button>
           </div>
+        )}
+        </div>
         )}
       </div>
     </div>

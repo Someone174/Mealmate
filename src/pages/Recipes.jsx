@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
@@ -26,6 +26,7 @@ export default function Recipes() {
   
   const [user, setUser] = useState(null);
   const [recipe, setRecipe] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [checkedIngredients, setCheckedIngredients] = useState([]);
   const [checkedSteps, setCheckedSteps] = useState([]);
   const [favorite, setFavorite] = useState(false);
@@ -33,9 +34,11 @@ export default function Recipes() {
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [timerMinutes, setTimerMinutes] = useState(0);
   const [copied, setCopied] = useState(false);
-  
+  const [scaledServings, setScaledServings] = useState(null);
+
   useEffect(() => {
     const load = async () => {
+      setLoading(true);
       const currentUser = getCurrentUser();
       setUser(currentUser);
       await loadRecipesDB();
@@ -49,9 +52,47 @@ export default function Recipes() {
           }
         }
       }
+      setLoading(false);
     };
     load();
   }, [recipeId]);
+
+  // Scale an ingredient amount string by a factor
+  const scaleAmount = (amount, factor) => {
+    if (!amount || factor === 1) return amount;
+    // Match leading number (including fractions like 1/2, 1 1/2)
+    const match = amount.match(/^(\d+\s+\d+\/\d+|\d+\/\d+|\d+\.?\d*)/);
+    if (!match) return amount;
+    const numStr = match[1];
+    let value;
+    if (numStr.includes('/')) {
+      const parts = numStr.trim().split(/\s+/);
+      if (parts.length === 2) {
+        const [whole, frac] = parts;
+        const [num, den] = frac.split('/');
+        value = parseInt(whole) + parseInt(num) / parseInt(den);
+      } else {
+        const [num, den] = numStr.split('/');
+        value = parseInt(num) / parseInt(den);
+      }
+    } else {
+      value = parseFloat(numStr);
+    }
+    const scaled = value * factor;
+    const remainder = amount.slice(match[0].length);
+    // Format nicely
+    if (Number.isInteger(scaled)) return `${scaled}${remainder}`;
+    // Try to express as a simple fraction
+    const fracs = [[1,4,'¼'],[1,3,'⅓'],[1,2,'½'],[2,3,'⅔'],[3,4,'¾']];
+    const whole = Math.floor(scaled);
+    const frac = scaled - whole;
+    for (const [n, d, sym] of fracs) {
+      if (Math.abs(frac - n/d) < 0.05) {
+        return whole > 0 ? `${whole} ${sym}${remainder}` : `${sym}${remainder}`;
+      }
+    }
+    return `${Math.round(scaled * 10) / 10}${remainder}`;
+  };
   
   // Timer effect
   useEffect(() => {
@@ -67,7 +108,7 @@ export default function Recipes() {
       }, 1000);
     } else if (timerActive && timerMinutes === 0 && timerSeconds === 0) {
       setTimerActive(false);
-      toast.success('Timer complete! ðŸŽ‰ Your meal should be ready!');
+      toast.success('Timer complete! Your meal should be ready!');
     }
     return () => clearInterval(interval);
   }, [timerActive, timerMinutes, timerSeconds]);
@@ -97,7 +138,7 @@ export default function Recipes() {
     } else {
       addFavorite(user.username, recipeId);
       setFavorite(true);
-      toast.success('Added to favorites! â¤ï¸');
+      toast.success('Added to favorites! ❤️');
     }
   };
   
@@ -108,7 +149,7 @@ export default function Recipes() {
   };
   
   const handleShare = async () => {
-    const shareText = `Check out this recipe: ${recipe.name} ðŸ½ï¸\n\nPrep time: ${recipe.prepTime} min\nServings: ${recipe.servings}\n\n${recipe.summary}`;
+    const shareText = `Check out this recipe: ${recipe.name} 🍽️\n\nPrep time: ${recipe.prepTime} min\nServings: ${recipe.servings}\n\n${recipe.summary}`;
     
     if (navigator.share) {
       try {
@@ -128,11 +169,23 @@ export default function Recipes() {
     window.print();
   };
   
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full"
+        />
+      </div>
+    );
+  }
+
   if (!recipe) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="text-6xl mb-4">ðŸ½ï¸</div>
+          <div className="text-6xl mb-4">🍽️</div>
           <h2 className="text-xl font-bold text-gray-800 mb-2">Recipe not found</h2>
           <p className="text-gray-500 mb-4">Select a recipe from your meal plan</p>
           <Link to={createPageUrl('Dashboard')}>
@@ -220,7 +273,24 @@ export default function Recipes() {
                 </div>
                 <div className="flex items-center gap-2 text-gray-600">
                   <Users className="w-5 h-5 text-orange-500" />
-                  <span>{recipe.servings} servings</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setScaledServings(s => Math.max(1, (s ?? recipe.servings) - 1))}
+                      className="w-6 h-6 rounded-full bg-orange-100 text-orange-600 hover:bg-orange-200 flex items-center justify-center font-bold text-sm transition-colors"
+                    >−</button>
+                    <span className="font-semibold w-6 text-center">{scaledServings ?? recipe.servings}</span>
+                    <button
+                      onClick={() => setScaledServings(s => Math.min(20, (s ?? recipe.servings) + 1))}
+                      className="w-6 h-6 rounded-full bg-orange-100 text-orange-600 hover:bg-orange-200 flex items-center justify-center font-bold text-sm transition-colors"
+                    >+</button>
+                    <span className="text-gray-500">servings</span>
+                    {scaledServings && scaledServings !== recipe.servings && (
+                      <button
+                        onClick={() => setScaledServings(null)}
+                        className="text-xs text-gray-400 hover:text-gray-600 underline"
+                      >reset</button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 text-gray-600">
                   <Zap className="w-5 h-5 text-amber-500" />
@@ -239,24 +309,29 @@ export default function Recipes() {
           </div>
           
           {/* Nutrition Cards */}
-          <div className="grid grid-cols-4 gap-3 mt-6 pt-6 border-t border-gray-100">
-            <div className="text-center p-3 bg-emerald-50 rounded-2xl">
-              <p className="text-2xl font-bold text-emerald-600">{recipe.calories}</p>
-              <p className="text-xs text-gray-500">Calories</p>
-            </div>
-            <div className="text-center p-3 bg-red-50 rounded-2xl">
-              <p className="text-2xl font-bold text-red-600">{recipe.protein}g</p>
-              <p className="text-xs text-gray-500">Protein</p>
-            </div>
-            <div className="text-center p-3 bg-orange-50 rounded-2xl">
-              <p className="text-2xl font-bold text-orange-600">{recipe.carbs}g</p>
-              <p className="text-xs text-gray-500">Carbs</p>
-            </div>
-            <div className="text-center p-3 bg-violet-50 rounded-2xl">
-              <p className="text-2xl font-bold text-violet-600">{recipe.fat}g</p>
-              <p className="text-xs text-gray-500">Fat</p>
-            </div>
-          </div>
+          {(() => {
+            const factor = scaledServings ? scaledServings / (recipe.servings || 1) : 1;
+            return (
+              <div className="grid grid-cols-4 gap-3 mt-6 pt-6 border-t border-gray-100">
+                <div className="text-center p-3 bg-emerald-50 rounded-2xl">
+                  <p className="text-2xl font-bold text-emerald-600">{Math.round(recipe.calories * factor)}</p>
+                  <p className="text-xs text-gray-500">Calories</p>
+                </div>
+                <div className="text-center p-3 bg-red-50 rounded-2xl">
+                  <p className="text-2xl font-bold text-red-600">{Math.round(recipe.protein * factor)}g</p>
+                  <p className="text-xs text-gray-500">Protein</p>
+                </div>
+                <div className="text-center p-3 bg-orange-50 rounded-2xl">
+                  <p className="text-2xl font-bold text-orange-600">{Math.round(recipe.carbs * factor)}g</p>
+                  <p className="text-xs text-gray-500">Carbs</p>
+                </div>
+                <div className="text-center p-3 bg-violet-50 rounded-2xl">
+                  <p className="text-2xl font-bold text-violet-600">{Math.round(recipe.fat * factor)}g</p>
+                  <p className="text-xs text-gray-500">Fat</p>
+                </div>
+              </div>
+            );
+          })()}
         </motion.div>
         
         <div className="grid md:grid-cols-[1fr_1.5fr] gap-6">
@@ -268,32 +343,36 @@ export default function Recipes() {
             className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 h-fit"
           >
             <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <span className="text-2xl">ðŸ¥˜</span>
+              <span className="text-2xl">🥘</span>
               Ingredients
             </h2>
             
             <div className="space-y-2">
-              {recipe.ingredients.map((ing, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
-                    checkedIngredients.includes(idx) ? 'bg-emerald-50' : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <Checkbox
-                    checked={checkedIngredients.includes(idx)}
-                    onCheckedChange={() => toggleIngredient(idx)}
-                    className="data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
-                  />
-                  <div className={checkedIngredients.includes(idx) ? 'line-through text-gray-400' : ''}>
-                    <span className="font-medium">{ing.item}</span>
-                    <span className="text-gray-500 ml-2 text-sm">{ing.amount}</span>
-                  </div>
-                </motion.div>
-              ))}
+              {recipe.ingredients.map((ing, idx) => {
+                const factor = scaledServings ? scaledServings / (recipe.servings || 1) : 1;
+                const displayAmount = scaleAmount(ing.amount, factor);
+                return (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
+                      checkedIngredients.includes(idx) ? 'bg-emerald-50' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <Checkbox
+                      checked={checkedIngredients.includes(idx)}
+                      onCheckedChange={() => toggleIngredient(idx)}
+                      className="data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                    />
+                    <div className={checkedIngredients.includes(idx) ? 'line-through text-gray-400' : ''}>
+                      <span className="font-medium">{ing.item}</span>
+                      <span className="text-gray-500 ml-2 text-sm">{displayAmount}</span>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
             
             <p className="text-sm text-gray-500 mt-4 text-center">
@@ -372,7 +451,7 @@ export default function Recipes() {
                 animate={{ opacity: 1, scale: 1 }}
                 className="mt-6 p-4 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl text-white text-center"
               >
-                <span className="text-2xl mr-2">ðŸŽ‰</span>
+                <span className="text-2xl mr-2">🎉</span>
                 <span className="font-semibold">All done! Enjoy your delicious meal!</span>
               </motion.div>
             )}

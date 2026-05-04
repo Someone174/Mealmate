@@ -29,7 +29,7 @@ const aisleColors = {
 };
 
 export default function GroceryList({ groceryList, onToggleItem, pricedList, onRefreshPrices, loadingPrices, storeTotals, cheapestStore }) {
-const [expandedAisles, setExpandedAisles] = useState(
+  const [expandedAisles, setExpandedAisles] = useState(
     Object.keys(groceryList || {}).reduce((acc, key) => ({ ...acc, [key]: true }), {})
   );
   

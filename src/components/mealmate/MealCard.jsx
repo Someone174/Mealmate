@@ -143,9 +143,9 @@ export default function MealCard({ recipe, mealType, day, onSwap, onSkip, onUnsk
             }`}>
               <RecipeIcon />
             </div>
-            {!isSkipped && (
+            {!isSkipped && (recipe.nutritionLabel || recipe.calories) && (
               <span className={`px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r ${mealTypeColors[mealType]} text-white`}>
-                {recipe.nutritionLabel}
+                {recipe.nutritionLabel || `${recipe.calories} cal`}
               </span>
             )}
           </div>
