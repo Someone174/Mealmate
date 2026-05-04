@@ -1,8 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { 
-  Settings, LogOut,
+import {
+  Settings, LogOut, User,
   Sparkles, TrendingUp, ChefHat, Share2, Check,
   ShoppingCart, MessageCircle, Hand
 } from 'lucide-react';
@@ -64,7 +64,7 @@ export default function Dashboard() {
       setUser(currentUser);
 
       // Load or generate meal plan; prefer DB recipes if available.
-      let existingPlan = getMealPlan(currentUser.username);
+      let existingPlan = getMealPlan(currentUser);
       if (existingPlan) existingPlan = normalizeWeeklyPlan(existingPlan);
       if (!existingPlan) {
         const dietaryPrefs = currentUser.preferences?.dietary || [];
@@ -80,13 +80,13 @@ export default function Dashboard() {
           existingPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
         }
       }
-      saveMealPlan(currentUser.username, existingPlan);
+      saveMealPlan(currentUser, existingPlan);
       setPlan(existingPlan);
 
       // Compile grocery list
       const groceries = compileGroceryList(existingPlan, currentUser.preferences?.servings || 2);
       setGroceryList(groceries);
-      saveGroceryList(currentUser.username, groceries);
+      saveGroceryList(currentUser, groceries);
 
       // Fetch prices
       fetchPrices(groceries);
@@ -116,8 +116,8 @@ export default function Dashboard() {
     }
   };
   
-  const handleLogout = () => {
-    logoutUser();
+  const handleLogout = async () => {
+    await logoutUser();
     navigate(createPageUrl('Landing'));
   };
   
@@ -139,11 +139,11 @@ export default function Dashboard() {
         newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
       }
       setPlan(newPlan);
-      saveMealPlan(user.username, newPlan);
+      saveMealPlan(user, newPlan);
 
       const groceries = compileGroceryList(newPlan, user.preferences?.servings || 2);
       setGroceryList(groceries);
-      saveGroceryList(user.username, groceries);
+      saveGroceryList(user, groceries);
 
       setRefreshing(false);
       toast.success('Fresh meal plan generated.');
@@ -183,11 +183,11 @@ export default function Dashboard() {
     };
     
     setPlan(newPlan);
-    saveMealPlan(user.username, newPlan);
+    saveMealPlan(user, newPlan);
     
     const groceries = compileGroceryList(newPlan, user.preferences?.servings || 2);
     setGroceryList(groceries);
-    saveGroceryList(user.username, groceries);
+    saveGroceryList(user, groceries);
     
     toast.success(`Swapped ${mealType}.`);
     
@@ -197,7 +197,7 @@ export default function Dashboard() {
   
   const handleToggleGroceryItem = (aisle, idx) => {
     if (!user) return;
-    const updated = toggleGroceryItem(user.username, aisle, idx);
+    const updated = toggleGroceryItem(user, aisle, idx);
     if (updated) {
       setGroceryList(updated);
     }
@@ -205,14 +205,14 @@ export default function Dashboard() {
   
   const handleSkipMeal = (day, mealType) => {
     if (!user) return;
-    const updatedPlan = skipMeal(user.username, day, mealType);
+    const updatedPlan = skipMeal(user, day, mealType);
     if (updatedPlan) {
       setPlan(updatedPlan);
       
       // Update grocery list to exclude skipped meal
       const groceries = compileGroceryList(updatedPlan, user.preferences?.servings || 2);
       setGroceryList(groceries);
-      saveGroceryList(user.username, groceries);
+      saveGroceryList(user, groceries);
       
       toast.success('Meal skipped. Ingredients removed from list.');
       
@@ -223,14 +223,14 @@ export default function Dashboard() {
   
   const handleUnskipMeal = (day, mealType) => {
     if (!user) return;
-    const updatedPlan = unskipMeal(user.username, day, mealType);
+    const updatedPlan = unskipMeal(user, day, mealType);
     if (updatedPlan) {
       setPlan(updatedPlan);
       
       // Update grocery list to include restored meal
       const groceries = compileGroceryList(updatedPlan, user.preferences?.servings || 2);
       setGroceryList(groceries);
-      saveGroceryList(user.username, groceries);
+      saveGroceryList(user, groceries);
       
       toast.success('Meal restored. Ingredients added back.');
       
@@ -239,10 +239,10 @@ export default function Dashboard() {
     }
   };
   
-  const handleSavePreferences = (newPrefs) => {
+  const handleSavePreferences = async (newPrefs) => {
     if (!user) return;
-    
-    updateUserPreferences(user.username, newPrefs);
+
+    await updateUserPreferences(user.id || user.username, newPrefs);
     setUser(prev => ({ ...prev, preferences: newPrefs }));
     
     // Regenerate plan with new preferences
@@ -252,11 +252,11 @@ export default function Dashboard() {
     const servings = newPrefs.servings || 2;
     const newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
     setPlan(newPlan);
-    saveMealPlan(user.username, newPlan);
+    saveMealPlan(user, newPlan);
     
     const groceries = compileGroceryList(newPlan, newPrefs.servings || 2);
     setGroceryList(groceries);
-    saveGroceryList(user.username, groceries);
+    saveGroceryList(user, groceries);
     
     toast.success('Preferences updated. New plan ready.');
     
@@ -337,6 +337,7 @@ export default function Dashboard() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowGrocery(!showGrocery)}
+                aria-label={showGrocery ? 'Hide grocery list' : 'Show grocery list'}
                 className="lg:hidden relative"
               >
                 <ShoppingCart className="w-5 h-5" />
@@ -346,24 +347,32 @@ export default function Dashboard() {
                   </span>
                 )}
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowPrefs(true)}
+                aria-label="Edit preferences"
+                title="Edit preferences"
                 className="text-gray-600"
               >
                 <Settings className="w-5 h-5" />
               </Button>
 
+              <Link to="/Settings" aria-label="Open settings">
+                <Button variant="ghost" size="sm" className="text-gray-600 hidden sm:inline-flex">
+                  <User className="w-5 h-5" />
+                </Button>
+              </Link>
+
               <Link to="/Pricing">
-                {getUserPlan(user?.username) === 'free' ? (
+                {getUserPlan(user?.id || user?.username) === 'free' ? (
                   <Button size="sm" className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-0 rounded-xl text-xs font-bold px-3 hover:opacity-90">
                     <Sparkles className="w-3 h-3 mr-1" /> Upgrade
                   </Button>
                 ) : (
                   <span className="text-xs bg-amber-100 text-amber-700 font-bold px-2.5 py-1 rounded-full capitalize border border-amber-200">
-                    {getUserPlan(user?.username)}
+                    {getUserPlan(user?.id || user?.username)}
                   </span>
                 )}
               </Link>
@@ -372,6 +381,8 @@ export default function Dashboard() {
                 variant="ghost"
                 size="sm"
                 onClick={handleLogout}
+                aria-label="Sign out"
+                title="Sign out"
                 className="text-gray-600"
               >
                 <LogOut className="w-5 h-5" />
@@ -515,10 +526,10 @@ export default function Dashboard() {
         onPlanUpdate={(newDaysPlan) => {
           const normalizedPlan = normalizeWeeklyPlan(newDaysPlan);
           setPlan(normalizedPlan);
-          saveMealPlan(user.username, normalizedPlan);
+          saveMealPlan(user, normalizedPlan);
           const groceries = compileGroceryList(normalizedPlan, user?.preferences?.servings || 2);
           setGroceryList(groceries);
-          saveGroceryList(user.username, groceries);
+          saveGroceryList(user, groceries);
           fetchPrices(groceries);
           setShowChat(false);
           toast.success('AI meal plan applied to your dashboard.');

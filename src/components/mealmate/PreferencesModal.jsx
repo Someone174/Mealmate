@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Leaf, Timer, DollarSign, Users, UtensilsCrossed, Check } from 'lucide-react';
+import { X, Leaf, DollarSign, Users, UtensilsCrossed, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';

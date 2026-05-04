@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { ArrowRight, ArrowLeft, Check, User, Lock, Leaf, Timer, Users, UtensilsCrossed, AlertCircle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Check, User, Lock, Mail, Users, UtensilsCrossed, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createUser, loginUser, initializeDemoData } from '@/components/mealmate/LocalStorageService';
-import DemoTooltip from '@/components/mealmate/DemoTooltip';
+import { isSupabaseConfigured } from '@/lib/supabase';
 
 const dietaryOptions = [
   { id: 'vegetarian', label: 'Vegetarian', icon: '🥗', description: 'Plant-based meals' },
@@ -37,6 +37,7 @@ export default function CreateAccount() {
   
   const [formData, setFormData] = useState({
     username: '',
+    email: '',
     password: '',
     preferences: {
       dietary: [],
@@ -76,19 +77,19 @@ export default function CreateAccount() {
   const handleSubmit = async () => {
     setError('');
     setLoading(true);
-    
-    // Create account
-    const result = createUser(formData);
-    
+
+    const result = await createUser(formData);
     if (!result.success) {
       setError(result.error);
       setLoading(false);
       return;
     }
-    
-    // Auto-login
-    const loginResult = loginUser(formData.username, formData.password);
-    
+
+    const loginIdentifier = isSupabaseConfigured && formData.email
+      ? formData.email
+      : formData.username;
+    const loginResult = await loginUser(loginIdentifier, formData.password);
+
     if (loginResult.success) {
       setTimeout(() => {
         navigate(createPageUrl('Dashboard'));
@@ -98,18 +99,19 @@ export default function CreateAccount() {
       setLoading(false);
     }
   };
-  
+
   const canProceed = () => {
     if (step === 1) {
-      return formData.username.length >= 3 && formData.password.length >= 4;
+      const usernameOk = formData.username.length >= 3;
+      const passwordOk = formData.password.length >= 6;
+      const emailOk = !isSupabaseConfigured || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
+      return usernameOk && passwordOk && emailOk;
     }
     return true;
   };
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-orange-50 flex items-center justify-center p-4">
-      <DemoTooltip />
-      
       {/* Decorative Elements */}
       <div className="fixed top-20 left-20 w-64 h-64 bg-emerald-200 rounded-full blur-3xl opacity-30 pointer-events-none" />
       <div className="fixed bottom-20 right-20 w-64 h-64 bg-orange-200 rounded-full blur-3xl opacity-30 pointer-events-none" />
@@ -185,7 +187,26 @@ export default function CreateAccount() {
                       />
                     </div>
                   </div>
-                  
+
+                  {isSupabaseConfigured && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Email
+                      </label>
+                      <div className="relative">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <Input
+                          type="email"
+                          autoComplete="email"
+                          placeholder="you@example.com"
+                          value={formData.email}
+                          onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                          className="pl-12 h-14 text-lg rounded-xl border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Password
@@ -194,7 +215,8 @@ export default function CreateAccount() {
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <Input
                         type="password"
-                        placeholder="Create a password"
+                        autoComplete="new-password"
+                        placeholder={isSupabaseConfigured ? 'At least 6 characters' : 'Create a password'}
                         value={formData.password}
                         onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
                         className="pl-12 h-14 text-lg rounded-xl border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
@@ -371,7 +393,7 @@ export default function CreateAccount() {
                       </>
                     ) : (
                       <>
-                        Create Demo Account
+                        Create Account
                         <ArrowRight className="ml-2 w-5 h-5" />
                       </>
                     )}
@@ -382,10 +404,11 @@ export default function CreateAccount() {
           </AnimatePresence>
         </div>
         
-        {/* Demo hint */}
-        <p className="text-center text-gray-500 text-sm mt-6">
-          🎓 Demo mode – No real email required. Data saved locally.
-        </p>
+        {!isSupabaseConfigured && (
+          <p className="text-center text-gray-500 text-sm mt-6">
+            🛠️ Local mode — Supabase not configured. Data saved in this browser.
+          </p>
+        )}
       </motion.div>
     </div>
   );

@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Terminal, X, Loader2, CheckCircle2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Terminal, Loader2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { TheMealDB, normalizeMealDBRecipe } from '@/lib/themealdb';
 
 // ── Command Parsers ─────────────────────────────────────────────────────────

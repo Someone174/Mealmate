@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Printer, ShoppingCart, ChevronDown, ChevronUp, Sparkles, TrendingDown, RefreshCw } from 'lucide-react';
+import { Printer, ShoppingCart, ChevronDown, ChevronUp, Sparkles, TrendingDown, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';

@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Loader2, ChefHat, X, Sparkles, CheckCircle } from 'lucide-react';
+import { Send, Loader2, ChefHat, X, Sparkles, CheckCircle, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ReactMarkdown from 'react-markdown';
 import { stripCommandBlocks } from '@/components/mealmate/CommandExecutor';
 import { base44 } from '@/api/base44Client';
 import { normalizeWeeklyPlan } from '@/components/mealmate/MealData';
+import { appParams } from '@/lib/app-params';
+import { checkAILimit, incrementAIUsage } from '@/lib/ai-rate-limit';
+import { toast } from 'sonner';
 
 const STARTER_PROMPTS = [
   "Create a 7-day vegetarian meal plan, 1800 cal/day, Mediterranean cuisine, budget 400 QAR",
@@ -25,7 +28,7 @@ function stripMealPlanBlock(content) {
   return content?.replace(/```MEALPLAN_JSON[\s\S]*?```/g, '').trim() || '';
 }
 
-export default function MealPlannerChat({ isOpen, onClose, onPlanUpdate }) {
+export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -33,6 +36,9 @@ export default function MealPlannerChat({ isOpen, onClose, onPlanUpdate }) {
   const [appliedMsg, setAppliedMsg] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const abortRef = useRef(null);
+
+  const base44Configured = Boolean(appParams.appId && appParams.appBaseUrl);
 
   useEffect(() => {
     if (isOpen && !ready) {
@@ -52,8 +58,25 @@ export default function MealPlannerChat({ isOpen, onClose, onPlanUpdate }) {
     if (isOpen) setTimeout(() => inputRef.current?.focus(), 100);
   }, [isOpen]);
 
+  const cancelRequest = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setSending(false);
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || sending) return;
+
+    if (!base44Configured) {
+      toast.error('AI Planner is not configured. Add VITE_BASE44_APP_ID and VITE_BASE44_APP_BASE_URL.');
+      return;
+    }
+
+    const limit = checkAILimit(user?.id || user?.username, user?.plan);
+    if (!limit.allowed) {
+      toast.error(`Daily AI limit reached (${limit.used}/${limit.limit} on the ${user?.plan || 'free'} plan). Upgrade or come back tomorrow.`);
+      return;
+    }
 
     const userMsg = { role: 'user', content: input.trim() };
     const history = [...messages, userMsg];
@@ -61,13 +84,16 @@ export default function MealPlannerChat({ isOpen, onClose, onPlanUpdate }) {
     setInput('');
     setSending(true);
 
-    // Add empty assistant placeholder
     setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
       const response = await base44.integrations.Core.InvokeLLM({
         messages: history,
         prompt: userMsg.content,
+        signal: controller.signal,
       });
       const fullText = response?.response || response?.content || response?.text || '';
 
@@ -77,6 +103,8 @@ export default function MealPlannerChat({ isOpen, onClose, onPlanUpdate }) {
         return updated;
       });
 
+      incrementAIUsage(user?.id || user?.username);
+
       const extracted = extractMealPlan(fullText);
       if (extracted && onPlanUpdate) {
         setAppliedMsg('Plan ready! Click below to apply.');
@@ -84,16 +112,21 @@ export default function MealPlannerChat({ isOpen, onClose, onPlanUpdate }) {
         setTimeout(() => setAppliedMsg(''), 4000);
       }
     } catch (err) {
-      console.error('sendMessage failed', err);
-      setMessages(prev => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: 'assistant',
-          content: "Sorry, something went wrong while creating the meal plan. Check your Base44 app parameters or try again.",
-        };
-        return updated;
-      });
+      if (err?.name === 'AbortError' || controller.signal.aborted) {
+        setMessages(prev => prev.slice(0, -1));
+      } else {
+        console.error('sendMessage failed', err);
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            role: 'assistant',
+            content: 'Sorry, something went wrong while creating the meal plan. Please try again in a moment.',
+          };
+          return updated;
+        });
+      }
     } finally {
+      abortRef.current = null;
       setSending(false);
     }
   };
@@ -231,14 +264,26 @@ export default function MealPlannerChat({ isOpen, onClose, onPlanUpdate }) {
               placeholder="Ask about your meal plan..."
               className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"
             />
-            <Button
-              onClick={sendMessage}
-              disabled={sending || !input.trim()}
-              size="icon"
-              className="bg-emerald-500 hover:bg-emerald-600 rounded-xl"
-            >
-              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            </Button>
+            {sending ? (
+              <Button
+                onClick={cancelRequest}
+                size="icon"
+                aria-label="Stop generating"
+                className="bg-red-500 hover:bg-red-600 rounded-xl"
+              >
+                <Square className="w-4 h-4" fill="currentColor" />
+              </Button>
+            ) : (
+              <Button
+                onClick={sendMessage}
+                disabled={!input.trim()}
+                size="icon"
+                aria-label="Send message"
+                className="bg-emerald-500 hover:bg-emerald-600 rounded-xl"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </motion.div>

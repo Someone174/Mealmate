@@ -1,36 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { ArrowRight, Sparkles, ListChecks, Shuffle, Clock, Leaf, Heart, Users, ChefHat, TrendingUp, BarChart3 } from 'lucide-react';
+import { ArrowRight, Sparkles, ListChecks, Shuffle, Clock, BarChart3, ShoppingBasket, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import DemoTooltip from '@/components/mealmate/DemoTooltip';
-import { initializeDemoData, isLoggedIn, resetAllData } from '@/components/mealmate/LocalStorageService';
-import PitchDeck from '@/components/mealmate/PitchDeck';
+import { isLoggedIn } from '@/components/mealmate/LocalStorageService';
 
 export default function Landing() {
-  const [showPitchDeck, setShowPitchDeck] = useState(false);
-  
-  useEffect(() => {
-    initializeDemoData();
-    
-    const handleKeyPress = (e) => {
-      if (e.key === 'e' || e.key === 'E') {
-        setShowPitchDeck(true);
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, []);
-  
-  const handleReset = () => {
-    if (window.confirm('This will clear all demo data and accounts. Continue?')) {
-      resetAllData();
-      window.location.reload();
-    }
-  };
-  
   const features = [
     {
       icon: Sparkles,
@@ -51,19 +27,17 @@ export default function Landing() {
       color: 'from-orange-500 to-amber-500'
     }
   ];
-  
-  const stats = [
-    { label: 'Happy Meal Planners', value: '12,847', icon: Users },
-    { label: 'Recipes Available', value: '500+', icon: ChefHat },
-    { label: 'Hours Saved Weekly', value: '3.5', icon: Clock },
-    { label: 'User Satisfaction', value: '98%', icon: Heart }
+
+  const valueProps = [
+    { label: 'Plan a week in minutes', icon: Clock },
+    { label: 'Aisle-grouped grocery list', icon: ShoppingBasket },
+    { label: 'Compare local store prices', icon: BarChart3 },
+    { label: 'Your data stays private', icon: Lock }
   ];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/30 to-white">
-      {showPitchDeck && <PitchDeck onClose={() => setShowPitchDeck(false)} />}
-      <DemoTooltip />
-      
+
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -192,22 +166,21 @@ export default function Landing() {
         </div>
       </section>
       
-      {/* Stats Section */}
+      {/* Value Props Section */}
       <section className="py-16 bg-gradient-to-r from-emerald-500 to-teal-500">
         <div className="max-w-7xl mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat, i) => (
+            {valueProps.map((prop, i) => (
               <motion.div
-                key={stat.label}
+                key={prop.label}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
                 className="text-center text-white"
               >
-                <stat.icon className="w-8 h-8 mx-auto mb-3 opacity-80" />
-                <p className="text-4xl font-bold mb-1">{stat.value}</p>
-                <p className="text-emerald-100 text-sm">{stat.label}</p>
+                <prop.icon className="w-8 h-8 mx-auto mb-3 opacity-80" />
+                <p className="text-base sm:text-lg font-semibold leading-snug text-white">{prop.label}</p>
               </motion.div>
             ))}
           </div>
@@ -289,48 +262,6 @@ export default function Landing() {
         </div>
       </section>
       
-      {/* Investor Metrics Placeholder */}
-      <section className="py-16 px-4 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <span className="inline-flex items-center gap-2 px-4 py-2 bg-violet-100 text-violet-700 rounded-full text-sm font-medium mb-4">
-              <BarChart3 className="w-4 h-4" />
-              Platform Insights
-            </span>
-            <h2 className="text-3xl font-bold text-gray-900">
-              Users Love Quick Plans!
-            </h2>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-2xl p-6 border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-gray-500">Weekly Active Users</span>
-                <TrendingUp className="w-5 h-5 text-emerald-500" />
-              </div>
-              <p className="text-3xl font-bold text-gray-900">+127%</p>
-              <p className="text-sm text-emerald-600">vs. last month</p>
-            </div>
-            <div className="bg-white rounded-2xl p-6 border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-gray-500">Avg. Session Time</span>
-                <Clock className="w-5 h-5 text-orange-500" />
-              </div>
-              <p className="text-3xl font-bold text-gray-900">8.4 min</p>
-              <p className="text-sm text-orange-600">high engagement</p>
-            </div>
-            <div className="bg-white rounded-2xl p-6 border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-gray-500">Plan Generation Rate</span>
-                <Sparkles className="w-5 h-5 text-violet-500" />
-              </div>
-              <p className="text-3xl font-bold text-gray-900">94%</p>
-              <p className="text-sm text-violet-600">complete a week</p>
-            </div>
-          </div>
-        </div>
-      </section>
-      
       {/* Upgrade Teaser */}
       <section className="py-16 px-4">
         <div className="max-w-3xl mx-auto bg-gradient-to-r from-violet-50 to-purple-50 rounded-3xl p-8 border border-violet-100">
@@ -361,18 +292,25 @@ export default function Landing() {
               </div>
               <span className="font-bold text-xl text-gray-800">MealMate</span>
             </div>
-            
+
             <p className="text-gray-500 text-sm">
               Built with ❤️ for healthy habits
             </p>
-            
-            <Button
-              variant="ghost"
-              onClick={handleReset}
-              className="text-gray-400 hover:text-red-500 text-sm"
-            >
-              Logout / Reset Demo
-            </Button>
+
+            <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap justify-center">
+              <Link to={createPageUrl('SignIn')} className="hover:text-emerald-600">
+                Sign in
+              </Link>
+              <Link to={createPageUrl('CreateAccount')} className="hover:text-emerald-600">
+                Create account
+              </Link>
+              <Link to="/Privacy" className="hover:text-emerald-600">
+                Privacy
+              </Link>
+              <Link to="/Terms" className="hover:text-emerald-600">
+                Terms
+              </Link>
+            </div>
           </div>
         </div>
       </footer>

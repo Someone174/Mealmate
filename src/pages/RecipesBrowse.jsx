@@ -2,8 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
-  Search, Filter, X, Clock, Zap, ChefHat, 
-  ArrowLeft, SlidersHorizontal, Heart, Flame
+  Search, Filter, X, Clock, ChefHat, 
+  ArrowLeft, SlidersHorizontal, Flame
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,11 +11,8 @@ import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAllRecipes, loadRecipesDB } from '@/components/mealmate/MealData';
-import { 
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+
+
 
 const dietaryTags = [
   { id: 'vegetarian', label: 'Vegetarian', icon: '🥗' },
@@ -54,7 +51,7 @@ export default function RecipesBrowse() {
   const [showFilters, setShowFilters] = useState(false);
 
   // Re-compute after DB loads (dbReady flip triggers re-render)
-  const allRecipes = useMemo(() => getAllRecipes(), [dbReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  const allRecipes = useMemo(() => getAllRecipes(), [dbReady]);  
 
   const filteredRecipes = useMemo(() => {
     let results = allRecipes;
