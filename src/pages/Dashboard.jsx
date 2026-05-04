@@ -1,8 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { 
-  Settings, LogOut,
+import {
+  Settings, LogOut, User,
   Sparkles, TrendingUp, ChefHat, Share2, Check,
   ShoppingCart, MessageCircle, Hand
 } from 'lucide-react';
@@ -337,6 +337,7 @@ export default function Dashboard() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowGrocery(!showGrocery)}
+                aria-label={showGrocery ? 'Hide grocery list' : 'Show grocery list'}
                 className="lg:hidden relative"
               >
                 <ShoppingCart className="w-5 h-5" />
@@ -346,24 +347,32 @@ export default function Dashboard() {
                   </span>
                 )}
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowPrefs(true)}
+                aria-label="Edit preferences"
+                title="Edit preferences"
                 className="text-gray-600"
               >
                 <Settings className="w-5 h-5" />
               </Button>
 
+              <Link to="/Settings" aria-label="Open settings">
+                <Button variant="ghost" size="sm" className="text-gray-600 hidden sm:inline-flex">
+                  <User className="w-5 h-5" />
+                </Button>
+              </Link>
+
               <Link to="/Pricing">
-                {getUserPlan(user?.username) === 'free' ? (
+                {getUserPlan(user?.id || user?.username) === 'free' ? (
                   <Button size="sm" className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-0 rounded-xl text-xs font-bold px-3 hover:opacity-90">
                     <Sparkles className="w-3 h-3 mr-1" /> Upgrade
                   </Button>
                 ) : (
                   <span className="text-xs bg-amber-100 text-amber-700 font-bold px-2.5 py-1 rounded-full capitalize border border-amber-200">
-                    {getUserPlan(user?.username)}
+                    {getUserPlan(user?.id || user?.username)}
                   </span>
                 )}
               </Link>
@@ -372,6 +381,8 @@ export default function Dashboard() {
                 variant="ghost"
                 size="sm"
                 onClick={handleLogout}
+                aria-label="Sign out"
+                title="Sign out"
                 className="text-gray-600"
               >
                 <LogOut className="w-5 h-5" />

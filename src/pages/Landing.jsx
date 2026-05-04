@@ -297,12 +297,18 @@ export default function Landing() {
               Built with ❤️ for healthy habits
             </p>
 
-            <div className="flex items-center gap-4 text-sm text-gray-500">
+            <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap justify-center">
               <Link to={createPageUrl('SignIn')} className="hover:text-emerald-600">
                 Sign in
               </Link>
               <Link to={createPageUrl('CreateAccount')} className="hover:text-emerald-600">
                 Create account
+              </Link>
+              <Link to="/Privacy" className="hover:text-emerald-600">
+                Privacy
+              </Link>
+              <Link to="/Terms" className="hover:text-emerald-600">
+                Terms
               </Link>
             </div>
           </div>
