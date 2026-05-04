@@ -1,4 +1,4 @@
-﻿// MealMate Recipe Database - 50+ recipes with full details
+// MealMate Recipe Database - 50+ recipes with full details
 
 let _dbLoadPromise = null;
 export const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];

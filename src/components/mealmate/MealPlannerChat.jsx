@@ -82,6 +82,7 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
     const history = [...messages, userMsg];
     setMessages(history);
     setInput('');
+    setAppliedMsg('');
     setSending(true);
 
     setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
@@ -106,10 +107,8 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
       incrementAIUsage(user?.id || user?.username);
 
       const extracted = extractMealPlan(fullText);
-      if (extracted && onPlanUpdate) {
-        setAppliedMsg('Plan ready! Click below to apply.');
-        onPlanUpdate(extracted);
-        setTimeout(() => setAppliedMsg(''), 4000);
+      if (extracted) {
+        setAppliedMsg('Plan ready! Click the button below to apply it.');
       }
     } catch (err) {
       if (err?.name === 'AbortError' || controller.signal.aborted) {

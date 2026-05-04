@@ -1,4 +1,4 @@
-﻿const BASE = 'https://www.themealdb.com/api/json/v1/1';
+const BASE = 'https://www.themealdb.com/api/json/v1/1';
 
 const _cache = new Map();
 
