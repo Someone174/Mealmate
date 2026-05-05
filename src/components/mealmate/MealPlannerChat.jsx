@@ -134,6 +134,15 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
+  // Cancel any in-flight request when the panel is closed
+  useEffect(() => {
+    if (!isOpen && abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+      setSending(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (

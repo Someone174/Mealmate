@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import {
@@ -50,6 +50,9 @@ export default function Dashboard() {
   const [scraperStatus, setScraperStatus] = useState('');
   const [showChat, setShowChat] = useState(false);
 
+  // Debounce ref for price fetching — avoids hammering the API on rapid meal changes
+  const priceDebounceRef = useRef(null);
+
   // Mount background recipe scraper (initial load + every 4 min refresh)
   useRecipeScraper({ onStatusUpdate: setScraperStatus });
 
@@ -94,27 +97,33 @@ export default function Dashboard() {
     init();
   }, [navigate]);
   
-  const fetchPrices = async (groceries) => {
+  const fetchPrices = useCallback(async (groceries) => {
     if (!groceries) return;
     setLoadingPrices(true);
-    
+
     try {
       const priced = await fetchPricesForGroceryList(groceries);
       setPricedGroceryList(priced);
-      
+
       const totals = calculateTotalByStore(priced);
       setStoreTotals(totals);
-      
+
       const cheapest = getCheapestStoreForList(totals);
       setCheapestStore(cheapest);
-      
+
       toast.success(`Prices compared! Save ${cheapest.savings.toFixed(2)} QAR at ${cheapest.storeName}!`);
     } catch (error) {
       toast.error('Failed to fetch prices. Please try again.');
     } finally {
       setLoadingPrices(false);
     }
-  };
+  }, []);
+
+  // Debounced version — merges rapid meal-change price calls into one
+  const fetchPricesDebounced = useCallback((groceries, delay = 800) => {
+    if (priceDebounceRef.current) clearTimeout(priceDebounceRef.current);
+    priceDebounceRef.current = setTimeout(() => fetchPrices(groceries), delay);
+  }, [fetchPrices]);
   
   const handleLogout = async () => {
     await logoutUser();
@@ -141,7 +150,7 @@ export default function Dashboard() {
       setPlan(newPlan);
       saveMealPlan(user, newPlan);
 
-      const groceries = compileGroceryList(newPlan, user.preferences?.servings || 2);
+      const groceries = compileGroceryList(newPlan);
       setGroceryList(groceries);
       saveGroceryList(user, groceries);
 
@@ -155,25 +164,19 @@ export default function Dashboard() {
   };
   
   const handleRefreshPrices = () => {
-    if (groceryList) {
-      fetchPrices(groceryList);
-    }
+    if (groceryList) fetchPrices(groceryList);
   };
   
   const handleSwapMeal = (day, mealType) => {
     if (!user || !plan) return;
 
-    const dietaryPrefs = user.preferences?.dietary || [];
-    const cuisinePrefs = user.preferences?.cuisines || [];
-    const allPrefs = [...dietaryPrefs, ...cuisinePrefs];
-    const budget = user.preferences?.weeklyBudget || 500;
-    const servings = user.preferences?.servings || 2;
-    const usedIds = Object.values(plan).flatMap(dayMeals => 
-      Object.values(dayMeals).map(r => r.id)
+    // Collect currently-used recipe IDs (null-safe for skipped/missing meals)
+    const usedIds = Object.values(plan).flatMap(dayMeals =>
+      Object.values(dayMeals).filter(Boolean).map(r => r.id)
     );
 
-    const newRecipe = getRandomRecipe(mealType, allPrefs, usedIds, budget, servings);
-    
+    const newRecipe = getRandomRecipe(mealType);
+
     const newPlan = {
       ...plan,
       [day]: {
@@ -181,18 +184,18 @@ export default function Dashboard() {
         [mealType]: newRecipe
       }
     };
-    
+
     setPlan(newPlan);
     saveMealPlan(user, newPlan);
-    
-    const groceries = compileGroceryList(newPlan, user.preferences?.servings || 2);
+
+    const groceries = compileGroceryList(newPlan);
     setGroceryList(groceries);
     saveGroceryList(user, groceries);
-    
+
     toast.success(`Swapped ${mealType}.`);
-    
-    // Refresh prices after swap
-    fetchPrices(groceries);
+
+    // Debounce so rapid swaps don't fire a price request each time
+    fetchPricesDebounced(groceries);
   };
   
   const handleToggleGroceryItem = (aisle, idx) => {
@@ -208,34 +211,28 @@ export default function Dashboard() {
     const updatedPlan = skipMeal(user, day, mealType);
     if (updatedPlan) {
       setPlan(updatedPlan);
-      
-      // Update grocery list to exclude skipped meal
-      const groceries = compileGroceryList(updatedPlan, user.preferences?.servings || 2);
+
+      const groceries = compileGroceryList(updatedPlan);
       setGroceryList(groceries);
       saveGroceryList(user, groceries);
-      
+
       toast.success('Meal skipped. Ingredients removed from list.');
-      
-      // Refresh prices
-      fetchPrices(groceries);
+      fetchPricesDebounced(groceries);
     }
   };
-  
+
   const handleUnskipMeal = (day, mealType) => {
     if (!user) return;
     const updatedPlan = unskipMeal(user, day, mealType);
     if (updatedPlan) {
       setPlan(updatedPlan);
-      
-      // Update grocery list to include restored meal
-      const groceries = compileGroceryList(updatedPlan, user.preferences?.servings || 2);
+
+      const groceries = compileGroceryList(updatedPlan);
       setGroceryList(groceries);
       saveGroceryList(user, groceries);
-      
+
       toast.success('Meal restored. Ingredients added back.');
-      
-      // Refresh prices
-      fetchPrices(groceries);
+      fetchPricesDebounced(groceries);
     }
   };
   
@@ -244,23 +241,23 @@ export default function Dashboard() {
 
     await updateUserPreferences(user.id || user.username, newPrefs);
     setUser(prev => ({ ...prev, preferences: newPrefs }));
-    
-    // Regenerate plan with new preferences
+
+    // Use DB recipes when available (same logic as handleRegeneratePlan)
     const dietaryPrefs = newPrefs.dietary || [];
     const cuisinePrefs = newPrefs.cuisines || [];
-    const budget = newPrefs.weeklyBudget || 500;
-    const servings = newPrefs.servings || 2;
-    const newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+    const dbRaw = getAllRecipes();
+    const newPlan = dbRaw.length >= 21
+      ? generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs])
+      : generateWeeklyPlan();
+
     setPlan(newPlan);
     saveMealPlan(user, newPlan);
-    
-    const groceries = compileGroceryList(newPlan, newPrefs.servings || 2);
+
+    const groceries = compileGroceryList(newPlan);
     setGroceryList(groceries);
     saveGroceryList(user, groceries);
-    
+
     toast.success('Preferences updated. New plan ready.');
-    
-    // Fetch prices for new plan
     fetchPrices(groceries);
   };
   
@@ -281,9 +278,11 @@ export default function Dashboard() {
     }
   };
   
-  // Calculate planned meals count
+  // Calculate planned meals count — exclude skipped slots
   const totalMeals = 21;
-  const plannedMeals = plan ? Object.values(plan).flatMap(d => Object.values(d)).length : 0;
+  const plannedMeals = plan
+    ? Object.values(plan).flatMap(d => Object.values(d)).filter(m => m && !m.skipped).length
+    : 0;
   const progress = (plannedMeals / totalMeals) * 100;
   
   // Get preference summary
@@ -479,7 +478,7 @@ export default function Dashboard() {
           </div>
           
           {/* Sidebar - Grocery List */}
-          <div className={`lg:block ${showGrocery ? 'fixed inset-0 z-50 bg-white p-4 overflow-y-auto lg:relative lg:inset-auto lg:bg-transparent lg:p-0' : 'hidden'}`}>
+          <div className={`lg:block ${showGrocery ? 'fixed inset-0 z-50 bg-white p-4 overflow-y-auto overscroll-contain lg:relative lg:inset-auto lg:bg-transparent lg:p-0' : 'hidden'}`}>
             {showGrocery && (
               <Button
                 variant="ghost"
