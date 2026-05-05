@@ -168,11 +168,11 @@ export default function Dashboard() {
     const allPrefs = [...dietaryPrefs, ...cuisinePrefs];
     const budget = user.preferences?.weeklyBudget || 500;
     const servings = user.preferences?.servings || 2;
-    const usedIds = Object.values(plan).flatMap(dayMeals => 
-      Object.values(dayMeals).map(r => r.id)
+    const usedIds = Object.values(plan).flatMap(dayMeals =>
+      Object.values(dayMeals).filter(Boolean).map(r => r.id)
     );
 
-    const newRecipe = getRandomRecipe(mealType, allPrefs, usedIds, budget, servings);
+    const newRecipe = getRandomRecipe(mealType, allPrefs, usedIds);
     
     const newPlan = {
       ...plan,
@@ -244,23 +244,25 @@ export default function Dashboard() {
 
     await updateUserPreferences(user.id || user.username, newPrefs);
     setUser(prev => ({ ...prev, preferences: newPrefs }));
-    
-    // Regenerate plan with new preferences
+
     const dietaryPrefs = newPrefs.dietary || [];
     const cuisinePrefs = newPrefs.cuisines || [];
-    const budget = newPrefs.weeklyBudget || 500;
     const servings = newPrefs.servings || 2;
-    const newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+
+    // Use DB recipes when available (same logic as initial load).
+    const dbRaw = getAllRecipes();
+    const newPlan = dbRaw.length >= 21
+      ? generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs])
+      : generateWeeklyPlan(dietaryPrefs, cuisinePrefs);
+
     setPlan(newPlan);
     saveMealPlan(user, newPlan);
-    
-    const groceries = compileGroceryList(newPlan, newPrefs.servings || 2);
+
+    const groceries = compileGroceryList(newPlan, servings);
     setGroceryList(groceries);
     saveGroceryList(user, groceries);
-    
+
     toast.success('Preferences updated. New plan ready.');
-    
-    // Fetch prices for new plan
     fetchPrices(groceries);
   };
   
@@ -281,9 +283,11 @@ export default function Dashboard() {
     }
   };
   
-  // Calculate planned meals count
+  // Calculate planned (non-skipped) meals.
   const totalMeals = 21;
-  const plannedMeals = plan ? Object.values(plan).flatMap(d => Object.values(d)).length : 0;
+  const plannedMeals = plan
+    ? Object.values(plan).flatMap(d => Object.values(d)).filter(m => m && !m.skipped).length
+    : 0;
   const progress = (plannedMeals / totalMeals) * 100;
   
   // Get preference summary

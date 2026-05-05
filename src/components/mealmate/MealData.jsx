@@ -275,10 +275,23 @@ export const getAllRecipes = () => [
 export const getRecipeById = (id) =>
   getAllRecipes().find(r => r.id === id) || null;
 
-export const getRandomRecipe = (type) => {
+export const getRandomRecipe = (type, preferences = [], usedIds = []) => {
   const pool = type ? (RECIPES[type] || []) : getAllRecipes();
   if (!pool.length) return null;
-  return pool[Math.floor(Math.random() * pool.length)];
+
+  // Exclude already-used recipes so swaps always produce something fresh.
+  let available = usedIds.length ? pool.filter(r => !usedIds.includes(r.id)) : pool;
+  if (!available.length) available = pool;
+
+  // Prefer recipes that match at least one preference tag.
+  if (preferences?.length) {
+    const preferred = available.filter(r =>
+      preferences.some(p => r.tags?.includes(p))
+    );
+    if (preferred.length) available = preferred;
+  }
+
+  return available[Math.floor(Math.random() * available.length)];
 };
 
 export const normalizeDBRecipe = (r) => {
@@ -330,46 +343,89 @@ export const planToDayArray = (plan) => {
   return DAYS.map(day => ({ day, ...(normalized[day] || {}) }));
 };
 
-export const generateWeeklyPlan = () => {
+export const generateWeeklyPlan = (dietaryPrefs = [], cuisinePrefs = []) => {
+  const allPrefs = [...(dietaryPrefs || []), ...(cuisinePrefs || [])];
+  const usedIds = [];
+
+  const pick = (type) => {
+    const recipe = getRandomRecipe(type, allPrefs, usedIds) || getRandomRecipe(type) || getRandomRecipe();
+    if (recipe) usedIds.push(recipe.id);
+    return recipe;
+  };
+
   return Object.fromEntries(DAYS.map(day => [day, {
-    breakfast: getRandomRecipe('breakfast') || getRandomRecipe(),
-    lunch: getRandomRecipe('lunch') || getRandomRecipe(),
-    dinner: getRandomRecipe('dinner') || getRandomRecipe(),
+    breakfast: pick('breakfast'),
+    lunch: pick('lunch'),
+    dinner: pick('dinner'),
   }]));
 };
 
-export const generateWeeklyPlanFromDBRecipes = (recipes, _preferences = []) => {
-  if (!recipes?.length) return generateWeeklyPlan();
+export const generateWeeklyPlanFromDBRecipes = (recipes, preferences = []) => {
+  if (!recipes?.length) return generateWeeklyPlan(preferences);
+
   const byType = {
     breakfast: recipes.filter(r => r.meal_type === 'breakfast'),
     lunch: recipes.filter(r => r.meal_type === 'lunch'),
     dinner: recipes.filter(r => r.meal_type === 'dinner'),
   };
-  const pick = (type) => {
-    const pool = byType[type].length ? byType[type] : recipes;
-    return pool[Math.floor(Math.random() * pool.length)];
+
+  const usedIds = [];
+
+  const pickFromPool = (pool) => {
+    // Prefer recipes not already used this week.
+    let available = usedIds.length ? pool.filter(r => !usedIds.includes(r.id)) : pool;
+    if (!available.length) available = pool;
+
+    // Prefer recipes matching at least one preference tag.
+    if (preferences?.length) {
+      const preferred = available.filter(r =>
+        preferences.some(p => r.tags?.includes(p) || r.meal_type === p)
+      );
+      if (preferred.length) available = preferred;
+    }
+
+    return available[Math.floor(Math.random() * available.length)];
   };
+
+  const pick = (type) => {
+    const typePool = byType[type].length ? byType[type] : recipes;
+    const recipe = pickFromPool(typePool);
+    if (recipe) usedIds.push(recipe.id);
+    return recipe;
+  };
+
   return Object.fromEntries(DAYS.map(day => [day, {
     breakfast: pick('breakfast'),
     lunch: pick('lunch'),
-    dinner: pick('dinner')
+    dinner: pick('dinner'),
   }]));
 };
 
-export const compileGroceryList = (weekPlan) => {
+export const compileGroceryList = (weekPlan, targetServings = 2) => {
   if (!weekPlan) return {};
   const itemMap = {};
+
   planToDayArray(weekPlan).forEach(dayPlan => {
     MEAL_TYPES.forEach(t => {
-      if (dayPlan[t]?.skipped) return;
-      (dayPlan[t]?.ingredients || []).forEach(ing => {
+      const recipe = dayPlan[t];
+      if (!recipe || recipe.skipped) return;
+
+      const recipeServings = recipe.servings || 2;
+      // Compute how many times larger the user's portion is vs. the recipe default.
+      const scaleFactor = Math.max(0.5, targetServings / recipeServings);
+
+      (recipe.ingredients || []).forEach(ing => {
         const key = ing.item?.toLowerCase();
         if (!key) return;
-        if (!itemMap[key]) itemMap[key] = { ...ing, checked: false, count: 1 };
-        else itemMap[key].count += 1;
+        if (!itemMap[key]) {
+          itemMap[key] = { ...ing, checked: false, count: 1, scaleFactor };
+        } else {
+          itemMap[key].count += 1;
+        }
       });
     });
   });
+
   const aisleMap = {};
   Object.values(itemMap).forEach(item => {
     const aisle = item.aisle || 'Pantry';

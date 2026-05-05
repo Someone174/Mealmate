@@ -31,9 +31,11 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings] = useState(false);
-  const [authError] = useState(null);
-  const [appPublicSettings] = useState({ id: 'local', public_settings: {} });
+  // isLoadingPublicSettings kept for App.jsx compatibility — always false (no remote config).
+  const isLoadingPublicSettings = false;
+  // authError kept for App.jsx compatibility — set to null; errors surface via toast.
+  const authError = null;
+  const appPublicSettings = { id: 'local', public_settings: {} };
 
   useEffect(() => {
     let unsub = null;
@@ -76,8 +78,6 @@ export const AuthProvider = ({ children }) => {
     window.location.href = '/';
   };
 
-  const checkAppState = () => {};
-
   return (
     <AuthContext.Provider value={{
       user,
@@ -88,7 +88,6 @@ export const AuthProvider = ({ children }) => {
       appPublicSettings,
       logout,
       navigateToLogin,
-      checkAppState,
     }}>
       {children}
     </AuthContext.Provider>

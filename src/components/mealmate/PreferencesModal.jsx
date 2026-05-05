@@ -30,6 +30,13 @@ export default function PreferencesModal({ isOpen, onClose, currentPrefs, onSave
     cuisines: [],
     weeklyBudget: 500
   });
+
+  // Sync form state whenever the modal opens so it always reflects the latest saved prefs.
+  React.useEffect(() => {
+    if (isOpen && currentPrefs) {
+      setPrefs(currentPrefs);
+    }
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   
   const toggleDietary = (id) => {
     setPrefs(prev => ({

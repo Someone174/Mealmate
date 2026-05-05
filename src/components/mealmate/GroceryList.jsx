@@ -218,7 +218,13 @@ export default function GroceryList({ groceryList, onToggleItem, pricedList, onR
                                     {item.item}
                                   </p>
                                   <p className="text-xs text-gray-400">
-                                    {item.amount} {item.count > 1 && `(×${item.count})`}
+                                    {item.amount}
+                                    {item.count > 1 && ` ×${item.count}`}
+                                    {item.scaleFactor && item.scaleFactor !== 1 && (
+                                      <span className="ml-1 text-orange-500 font-medium">
+                                        ×{item.scaleFactor % 1 === 0 ? item.scaleFactor : item.scaleFactor.toFixed(1)} servings
+                                      </span>
+                                    )}
                                   </p>
                                 </div>
                                 {pricedItem?.priceData && (
