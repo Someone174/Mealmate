@@ -1,27 +1,30 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Loader2, ChefHat, X, Sparkles, CheckCircle, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ReactMarkdown from 'react-markdown';
 import { stripCommandBlocks } from '@/components/mealmate/CommandExecutor';
-import { base44 } from '@/api/base44Client';
 import { normalizeWeeklyPlan } from '@/components/mealmate/MealData';
-import { appParams } from '@/lib/app-params';
 import { checkAILimit, incrementAIUsage } from '@/lib/ai-rate-limit';
+import { sendChatMessage, isAIConfigured } from '@/lib/aiProvider';
 import { toast } from 'sonner';
 
 const STARTER_PROMPTS = [
-  "Create a 7-day vegetarian meal plan, 1800 cal/day, Mediterranean cuisine, budget 400 QAR",
-  "Make me a high-protein meal plan for 2 people, max 30 min cooking time",
-  "I need a gluten-free weekly plan, I strongly dislike mushrooms, budget 500 QAR",
-  "Design a balanced meal plan with 2000 calories/day, I dislike spicy food",
+  'Create a 7-day vegetarian meal plan, 1800 cal/day, Mediterranean cuisine, budget 400 QAR',
+  'Make me a high-protein meal plan for 2 people, max 30 min cooking time',
+  'I need a gluten-free weekly plan, I strongly dislike mushrooms, budget 500 QAR',
+  'Design a balanced meal plan with 2000 calories/day, I dislike spicy food',
 ];
 
 function extractMealPlan(content) {
   if (!content) return null;
   const match = content.match(/```MEALPLAN_JSON\s*([\s\S]*?)```/);
   if (!match) return null;
-  try { return normalizeWeeklyPlan(JSON.parse(match[1].trim())); } catch { return null; }
+  try {
+    return normalizeWeeklyPlan(JSON.parse(match[1].trim()));
+  } catch {
+    return null;
+  }
 }
 
 function stripMealPlanBlock(content) {
@@ -38,8 +41,9 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
   const inputRef = useRef(null);
   const abortRef = useRef(null);
 
-  const base44Configured = Boolean(appParams.appId && appParams.appBaseUrl);
+  const aiConfigured = isAIConfigured();
 
+  // Initialise with a greeting when the panel opens
   useEffect(() => {
     if (isOpen && !ready) {
       setMessages([{
@@ -58,23 +62,26 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
     if (isOpen) setTimeout(() => inputRef.current?.focus(), 100);
   }, [isOpen]);
 
-  const cancelRequest = () => {
+  const cancelRequest = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
     setSending(false);
-  };
+  }, []);
 
-  const sendMessage = async () => {
+  const sendMessage = useCallback(async () => {
     if (!input.trim() || sending) return;
 
-    if (!base44Configured) {
-      toast.error('AI Planner is not configured. Add VITE_BASE44_APP_ID and VITE_BASE44_APP_BASE_URL.');
+    if (!aiConfigured) {
+      toast.error('AI Planner is not configured. See PLEASE_NOTE.md or set up your AI provider keys.');
       return;
     }
 
-    const limit = checkAILimit(user?.id || user?.username, user?.plan);
+    const userId = user?.id || user?.username;
+    const limit = checkAILimit(userId, user?.plan);
     if (!limit.allowed) {
-      toast.error(`Daily AI limit reached (${limit.used}/${limit.limit} on the ${user?.plan || 'free'} plan). Upgrade or come back tomorrow.`);
+      toast.error(
+        `Daily AI limit reached (${limit.used}/${limit.limit} on the ${user?.plan || 'free'} plan). Upgrade or come back tomorrow.`
+      );
       return;
     }
 
@@ -85,18 +92,14 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
     setAppliedMsg('');
     setSending(true);
 
+    // Add empty assistant placeholder while waiting
     setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
     const controller = new AbortController();
     abortRef.current = controller;
 
     try {
-      const response = await base44.integrations.Core.InvokeLLM({
-        messages: history,
-        prompt: userMsg.content,
-        signal: controller.signal,
-      });
-      const fullText = response?.response || response?.content || response?.text || '';
+      const fullText = await sendChatMessage(history, userMsg.content);
 
       setMessages(prev => {
         const updated = [...prev];
@@ -104,17 +107,17 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
         return updated;
       });
 
-      incrementAIUsage(user?.id || user?.username);
+      incrementAIUsage(userId);
 
-      const extracted = extractMealPlan(fullText);
-      if (extracted) {
+      if (extractMealPlan(fullText)) {
         setAppliedMsg('Plan ready! Click the button below to apply it.');
       }
     } catch (err) {
-      if (err?.name === 'AbortError' || controller.signal.aborted) {
+      if (controller.signal.aborted) {
+        // User cancelled — remove the empty placeholder
         setMessages(prev => prev.slice(0, -1));
       } else {
-        console.error('sendMessage failed', err);
+        console.error('[MealPlannerChat] sendMessage failed:', err);
         setMessages(prev => {
           const updated = [...prev];
           updated[updated.length - 1] = {
@@ -128,11 +131,22 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
       abortRef.current = null;
       setSending(false);
     }
-  };
+  }, [input, sending, aiConfigured, user, messages]);
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  };
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }, [sendMessage]);
+
+  const applyPlan = useCallback((plan) => {
+    if (onPlanUpdate) {
+      onPlanUpdate(plan);
+      setAppliedMsg('Plan applied!');
+      setTimeout(() => setAppliedMsg(''), 3000);
+    }
+  }, [onPlanUpdate]);
 
   if (!isOpen) return null;
 
@@ -143,6 +157,8 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20 }}
         className="fixed bottom-4 right-4 z-50 bg-white rounded-2xl shadow-2xl w-full max-w-md h-[600px] flex flex-col border border-gray-100"
+        role="dialog"
+        aria-label="MealMate AI chat"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b">
@@ -151,28 +167,17 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
             <span className="font-semibold text-gray-900">MealMate AI</span>
             <Sparkles className="w-3 h-3 text-amber-400" />
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100">
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-label="Close AI chat"
+          >
             <X className="w-4 h-4 text-gray-500" />
           </button>
         </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {!ready && (
-            <div className="space-y-2 pt-4">
-              <p className="text-sm text-gray-500 text-center mb-3">Try a starter prompt:</p>
-              {STARTER_PROMPTS.map((p, i) => (
-                <button
-                  key={i}
-                  onClick={() => { setInput(p); setTimeout(() => inputRef.current?.focus(), 50); }}
-                  className="w-full text-left text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl px-3 py-2 hover:bg-emerald-100 transition-colors"
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          )}
-
           {messages.map((msg, i) => {
             const isUser = msg.role === 'user';
             let display = stripCommandBlocks(msg.content || '');
@@ -221,7 +226,7 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
 
                   {plan && onPlanUpdate && (
                     <button
-                      onClick={() => { onPlanUpdate(plan); setAppliedMsg('Plan applied!'); setTimeout(() => setAppliedMsg(''), 3000); }}
+                      onClick={() => applyPlan(plan)}
                       className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm self-start"
                     >
                       <CheckCircle className="w-4 h-4" />
@@ -243,17 +248,24 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Starter prompts — shown only before the first user message */}
+        {ready && messages.filter(m => m.role === 'user').length === 0 && (
+          <div className="px-4 pb-2 space-y-1.5">
+            <p className="text-xs text-gray-400 font-medium">Try a starter:</p>
+            {STARTER_PROMPTS.slice(0, 2).map((p, i) => (
+              <button
+                key={i}
+                onClick={() => { setInput(p); setTimeout(() => inputRef.current?.focus(), 50); }}
+                className="w-full text-left text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg px-2 py-1.5 hover:bg-emerald-100 transition-colors truncate"
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Input */}
         <div className="px-4 pb-4 pt-2 border-t">
-          {!ready && (
-            <div className="mb-2 space-y-1">
-              {STARTER_PROMPTS.slice(0, 2).map((p, i) => (
-                <button key={i} onClick={() => { setInput(p); setTimeout(() => inputRef.current?.focus(), 50); }}
-                  className="w-full text-left text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg px-2 py-1.5 hover:bg-emerald-100 transition-colors truncate"
-                >{p}</button>
-              ))}
-            </div>
-          )}
           <div className="flex gap-2">
             <input
               ref={inputRef}
@@ -261,14 +273,16 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask about your meal plan..."
-              className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"
+              className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors"
+              aria-label="Type a message"
+              disabled={sending}
             />
             {sending ? (
               <Button
                 onClick={cancelRequest}
                 size="icon"
                 aria-label="Stop generating"
-                className="bg-red-500 hover:bg-red-600 rounded-xl"
+                className="bg-red-500 hover:bg-red-600 rounded-xl flex-shrink-0"
               >
                 <Square className="w-4 h-4" fill="currentColor" />
               </Button>
@@ -278,7 +292,7 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
                 disabled={!input.trim()}
                 size="icon"
                 aria-label="Send message"
-                className="bg-emerald-500 hover:bg-emerald-600 rounded-xl"
+                className="bg-emerald-500 hover:bg-emerald-600 rounded-xl flex-shrink-0 disabled:opacity-50"
               >
                 <Send className="w-4 h-4" />
               </Button>

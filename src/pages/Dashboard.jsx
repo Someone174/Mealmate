@@ -4,7 +4,7 @@ import { createPageUrl } from '@/utils';
 import {
   Settings, LogOut, User,
   Sparkles, TrendingUp, ChefHat, Share2, Check,
-  ShoppingCart, MessageCircle, Hand
+  ShoppingCart, MessageCircle, Hand, RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -32,7 +32,7 @@ import WeeklyCalendar from '@/components/mealmate/WeeklyCalendar';
 import GroceryList from '@/components/mealmate/GroceryList';
 import PreferencesModal from '@/components/mealmate/PreferencesModal';
 import MealPlannerChat from '@/components/mealmate/MealPlannerChat';
-import { toast, Toaster } from 'sonner';
+import { toast } from 'sonner';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -69,22 +69,20 @@ export default function Dashboard() {
       if (!existingPlan) {
         const dietaryPrefs = currentUser.preferences?.dietary || [];
         const cuisinePrefs = currentUser.preferences?.cuisines || [];
-        const budget = currentUser.preferences?.weeklyBudget || 500;
-        const servings = currentUser.preferences?.servings || 2;
 
         // Use CSV recipes from recipes-db.json
         const dbRaw = getAllRecipes();
         if (dbRaw.length >= 21) {
           existingPlan = generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs]);
         } else {
-          existingPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+          existingPlan = generateWeeklyPlan([...dietaryPrefs, ...cuisinePrefs]);
         }
       }
       saveMealPlan(currentUser, existingPlan);
       setPlan(existingPlan);
 
       // Compile grocery list
-      const groceries = compileGroceryList(existingPlan, currentUser.preferences?.servings || 2);
+      const groceries = compileGroceryList(existingPlan);
       setGroceryList(groceries);
       saveGroceryList(currentUser, groceries);
 
@@ -109,7 +107,7 @@ export default function Dashboard() {
       setCheapestStore(cheapest);
       
       toast.success(`Prices compared! Save ${cheapest.savings.toFixed(2)} QAR at ${cheapest.storeName}!`);
-    } catch (error) {
+    } catch {
       toast.error('Failed to fetch prices. Please try again.');
     } finally {
       setLoadingPrices(false);
@@ -126,22 +124,20 @@ export default function Dashboard() {
     setRefreshing(true);
 
     const doRegen = async () => {
-        const dietaryPrefs = user.preferences?.dietary || [];
+      const dietaryPrefs = user.preferences?.dietary || [];
       const cuisinePrefs = user.preferences?.cuisines || [];
-      const budget = user.preferences?.weeklyBudget || 500;
-      const servings = user.preferences?.servings || 2;
 
       const dbRaw = getAllRecipes();
       let newPlan;
       if (dbRaw.length >= 21) {
         newPlan = generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs]);
       } else {
-        newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+        newPlan = generateWeeklyPlan([...dietaryPrefs, ...cuisinePrefs]);
       }
       setPlan(newPlan);
       saveMealPlan(user, newPlan);
 
-      const groceries = compileGroceryList(newPlan, user.preferences?.servings || 2);
+      const groceries = compileGroceryList(newPlan);
       setGroceryList(groceries);
       saveGroceryList(user, groceries);
 
@@ -166,13 +162,11 @@ export default function Dashboard() {
     const dietaryPrefs = user.preferences?.dietary || [];
     const cuisinePrefs = user.preferences?.cuisines || [];
     const allPrefs = [...dietaryPrefs, ...cuisinePrefs];
-    const budget = user.preferences?.weeklyBudget || 500;
-    const servings = user.preferences?.servings || 2;
-    const usedIds = Object.values(plan).flatMap(dayMeals => 
-      Object.values(dayMeals).map(r => r.id)
+    const usedIds = Object.values(plan).flatMap(dayMeals =>
+      Object.values(dayMeals).filter(Boolean).map(r => r.id)
     );
 
-    const newRecipe = getRandomRecipe(mealType, allPrefs, usedIds, budget, servings);
+    const newRecipe = getRandomRecipe(mealType, allPrefs, usedIds);
     
     const newPlan = {
       ...plan,
@@ -185,7 +179,7 @@ export default function Dashboard() {
     setPlan(newPlan);
     saveMealPlan(user, newPlan);
     
-    const groceries = compileGroceryList(newPlan, user.preferences?.servings || 2);
+    const groceries = compileGroceryList(newPlan);
     setGroceryList(groceries);
     saveGroceryList(user, groceries);
     
@@ -210,7 +204,7 @@ export default function Dashboard() {
       setPlan(updatedPlan);
       
       // Update grocery list to exclude skipped meal
-      const groceries = compileGroceryList(updatedPlan, user.preferences?.servings || 2);
+      const groceries = compileGroceryList(updatedPlan);
       setGroceryList(groceries);
       saveGroceryList(user, groceries);
       
@@ -228,7 +222,7 @@ export default function Dashboard() {
       setPlan(updatedPlan);
       
       // Update grocery list to include restored meal
-      const groceries = compileGroceryList(updatedPlan, user.preferences?.servings || 2);
+      const groceries = compileGroceryList(updatedPlan);
       setGroceryList(groceries);
       saveGroceryList(user, groceries);
       
@@ -245,16 +239,18 @@ export default function Dashboard() {
     await updateUserPreferences(user.id || user.username, newPrefs);
     setUser(prev => ({ ...prev, preferences: newPrefs }));
     
-    // Regenerate plan with new preferences
+    // Regenerate plan with new preferences using DB recipes when available
     const dietaryPrefs = newPrefs.dietary || [];
     const cuisinePrefs = newPrefs.cuisines || [];
-    const budget = newPrefs.weeklyBudget || 500;
-    const servings = newPrefs.servings || 2;
-    const newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+    const allPrefs = [...dietaryPrefs, ...cuisinePrefs];
+    const dbRaw = getAllRecipes();
+    const newPlan = dbRaw.length >= 21
+      ? generateWeeklyPlanFromDBRecipes(dbRaw, allPrefs)
+      : generateWeeklyPlan(allPrefs);
     setPlan(newPlan);
     saveMealPlan(user, newPlan);
     
-    const groceries = compileGroceryList(newPlan, newPrefs.servings || 2);
+    const groceries = compileGroceryList(newPlan);
     setGroceryList(groceries);
     saveGroceryList(user, groceries);
     
@@ -270,8 +266,8 @@ export default function Dashboard() {
     if (navigator.share) {
       try {
         await navigator.share({ text: shareText });
-      } catch (err) {
-        // User cancelled
+      } catch {
+        // User cancelled — no action needed
       }
     } else {
       await navigator.clipboard.writeText(shareText);
@@ -313,7 +309,6 @@ export default function Dashboard() {
   
   return (
     <div className="min-h-screen bg-gray-50">
-      <Toaster position="top-center" richColors />
       
       {/* Top Navigation */}
       <nav className="sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-gray-100">
@@ -346,6 +341,18 @@ export default function Dashboard() {
                     {Object.values(groceryList).flat().length}
                   </span>
                 )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRegeneratePlan}
+                disabled={refreshing}
+                aria-label="Generate new meal plan"
+                title="Generate new plan"
+                className="text-gray-600 hidden sm:inline-flex"
+              >
+                <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
               </Button>
 
               <Button
@@ -527,7 +534,7 @@ export default function Dashboard() {
           const normalizedPlan = normalizeWeeklyPlan(newDaysPlan);
           setPlan(normalizedPlan);
           saveMealPlan(user, normalizedPlan);
-          const groceries = compileGroceryList(normalizedPlan, user?.preferences?.servings || 2);
+          const groceries = compileGroceryList(normalizedPlan);
           setGroceryList(groceries);
           saveGroceryList(user, groceries);
           fetchPrices(groceries);

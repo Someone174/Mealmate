@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Leaf, DollarSign, Users, UtensilsCrossed, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -28,8 +28,15 @@ export default function PreferencesModal({ isOpen, onClose, currentPrefs, onSave
     dietary: [],
     servings: 2,
     cuisines: [],
-    weeklyBudget: 500
+    weeklyBudget: 500,
   });
+
+  // Sync local state whenever the modal opens with fresh props
+  useEffect(() => {
+    if (isOpen && currentPrefs) {
+      setPrefs(currentPrefs);
+    }
+  }, [isOpen, currentPrefs]);
   
   const toggleDietary = (id) => {
     setPrefs(prev => ({

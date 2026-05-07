@@ -275,9 +275,24 @@ export const getAllRecipes = () => [
 export const getRecipeById = (id) =>
   getAllRecipes().find(r => r.id === id) || null;
 
-export const getRandomRecipe = (type) => {
-  const pool = type ? (RECIPES[type] || []) : getAllRecipes();
+export const getRandomRecipe = (type, preferences = [], excludeIds = []) => {
+  let pool = type ? (RECIPES[type] || []) : getAllRecipes();
   if (!pool.length) return null;
+
+  // Filter by preferences (dietary tags / cuisine tags) if any provided
+  if (preferences.length) {
+    const filtered = pool.filter(r =>
+      preferences.some(pref => r.tags?.includes(pref))
+    );
+    if (filtered.length) pool = filtered;
+  }
+
+  // Avoid repeating already-used recipes when possible
+  if (excludeIds.length) {
+    const fresh = pool.filter(r => !excludeIds.includes(r.id));
+    if (fresh.length) pool = fresh;
+  }
+
   return pool[Math.floor(Math.random() * pool.length)];
 };
 
@@ -330,29 +345,48 @@ export const planToDayArray = (plan) => {
   return DAYS.map(day => ({ day, ...(normalized[day] || {}) }));
 };
 
-export const generateWeeklyPlan = () => {
-  return Object.fromEntries(DAYS.map(day => [day, {
-    breakfast: getRandomRecipe('breakfast') || getRandomRecipe(),
-    lunch: getRandomRecipe('lunch') || getRandomRecipe(),
-    dinner: getRandomRecipe('dinner') || getRandomRecipe(),
-  }]));
+export const generateWeeklyPlan = (preferences = []) => {
+  const usedIds = [];
+  return Object.fromEntries(DAYS.map(day => {
+    const breakfast = getRandomRecipe('breakfast', preferences, usedIds) || getRandomRecipe(null, preferences, usedIds);
+    if (breakfast) usedIds.push(breakfast.id);
+    const lunch = getRandomRecipe('lunch', preferences, usedIds) || getRandomRecipe(null, preferences, usedIds);
+    if (lunch) usedIds.push(lunch.id);
+    const dinner = getRandomRecipe('dinner', preferences, usedIds) || getRandomRecipe(null, preferences, usedIds);
+    if (dinner) usedIds.push(dinner.id);
+    return [day, { breakfast, lunch, dinner }];
+  }));
 };
 
-export const generateWeeklyPlanFromDBRecipes = (recipes, _preferences = []) => {
-  if (!recipes?.length) return generateWeeklyPlan();
+export const generateWeeklyPlanFromDBRecipes = (recipes, preferences = []) => {
+  if (!recipes?.length) return generateWeeklyPlan(preferences);
+
   const byType = {
     breakfast: recipes.filter(r => r.meal_type === 'breakfast'),
     lunch: recipes.filter(r => r.meal_type === 'lunch'),
     dinner: recipes.filter(r => r.meal_type === 'dinner'),
   };
-  const pick = (type) => {
-    const pool = byType[type].length ? byType[type] : recipes;
-    return pool[Math.floor(Math.random() * pool.length)];
+
+  const filterByPrefs = (pool) => {
+    if (!preferences.length) return pool;
+    const filtered = pool.filter(r => preferences.some(p => r.tags?.includes(p)));
+    return filtered.length ? filtered : pool;
   };
+
+  const usedIds = [];
+  const pick = (type) => {
+    let pool = filterByPrefs(byType[type].length ? byType[type] : recipes);
+    const fresh = pool.filter(r => !usedIds.includes(r.id));
+    if (fresh.length) pool = fresh;
+    const recipe = pool[Math.floor(Math.random() * pool.length)];
+    if (recipe) usedIds.push(recipe.id);
+    return recipe;
+  };
+
   return Object.fromEntries(DAYS.map(day => [day, {
     breakfast: pick('breakfast'),
     lunch: pick('lunch'),
-    dinner: pick('dinner')
+    dinner: pick('dinner'),
   }]));
 };
 

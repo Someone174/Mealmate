@@ -336,7 +336,7 @@ export const joinWaitlist = async ({ email, plan }) => {
     // Dev fallback: persist locally so the UI flow can be tested.
     const list = JSON.parse(localStorage.getItem('mealmate_waitlist') || '[]');
     if (list.find((e) => e.email === email)) {
-      return { success: false, error: 'You’re already on the waitlist.' };
+      return { success: false, error: "You're already on the waitlist." };
     }
     list.push({ email, plan, createdAt: new Date().toISOString() });
     localStorage.setItem('mealmate_waitlist', JSON.stringify(list));
@@ -346,7 +346,7 @@ export const joinWaitlist = async ({ email, plan }) => {
   const { error } = await supabase.from('waitlist').insert({ email, plan });
   if (error) {
     if (error.code === '23505') {
-      return { success: false, error: 'You’re already on the waitlist.' };
+      return { success: false, error: "You're already on the waitlist." };
     }
     return { success: false, error: error.message };
   }

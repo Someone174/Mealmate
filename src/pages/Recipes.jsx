@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
   ArrowLeft, Clock, Users, Zap, Heart, 
@@ -17,12 +17,11 @@ import {
   removeFavorite 
 } from '@/components/mealmate/LocalStorageService';
 import { getRecipeById, loadRecipesDB } from '@/components/mealmate/MealData';
-import { toast, Toaster } from 'sonner';
+import { toast } from 'sonner';
 
 export default function Recipes() {
-  const navigate = useNavigate();
-  const urlParams = new URLSearchParams(window.location.search);
-  const recipeId = urlParams.get('id');
+  const [searchParams] = useSearchParams();
+  const recipeId = searchParams.get('id');
   
   const [user, setUser] = useState(null);
   const [recipe, setRecipe] = useState(null);
@@ -45,7 +44,7 @@ export default function Recipes() {
           setRecipe(foundRecipe);
           setTimerMinutes(foundRecipe.prepTime);
           if (currentUser) {
-            setFavorite(isFavorite(currentUser.username, recipeId));
+            setFavorite(isFavorite(currentUser, recipeId));
           }
         }
       }
@@ -67,7 +66,7 @@ export default function Recipes() {
       }, 1000);
     } else if (timerActive && timerMinutes === 0 && timerSeconds === 0) {
       setTimerActive(false);
-      toast.success('Timer complete! ðŸŽ‰ Your meal should be ready!');
+      toast.success('Timer complete! 🎉 Your meal should be ready!');
     }
     return () => clearInterval(interval);
   }, [timerActive, timerMinutes, timerSeconds]);
@@ -91,13 +90,13 @@ export default function Recipes() {
     }
     
     if (favorite) {
-      removeFavorite(user.username, recipeId);
+      removeFavorite(user, recipeId);
       setFavorite(false);
       toast.success('Removed from favorites');
     } else {
-      addFavorite(user.username, recipeId);
+      addFavorite(user, recipeId);
       setFavorite(true);
-      toast.success('Added to favorites! â¤ï¸');
+      toast.success('Added to favorites! ❤️');
     }
   };
   
@@ -108,13 +107,13 @@ export default function Recipes() {
   };
   
   const handleShare = async () => {
-    const shareText = `Check out this recipe: ${recipe.name} ðŸ½ï¸\n\nPrep time: ${recipe.prepTime} min\nServings: ${recipe.servings}\n\n${recipe.summary}`;
+    const shareText = `Check out this recipe: ${recipe.name} 🍽️\n\nPrep time: ${recipe.prepTime} min\nServings: ${recipe.servings}\n\n${recipe.summary}`;
     
     if (navigator.share) {
       try {
         await navigator.share({ text: shareText, title: recipe.name });
-      } catch (err) {
-        // cancelled
+      } catch {
+        // User cancelled the share dialog
       }
     } else {
       await navigator.clipboard.writeText(shareText);
@@ -132,7 +131,7 @@ export default function Recipes() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="text-6xl mb-4">ðŸ½ï¸</div>
+          <div className="text-6xl mb-4">🍽️</div>
           <h2 className="text-xl font-bold text-gray-800 mb-2">Recipe not found</h2>
           <p className="text-gray-500 mb-4">Select a recipe from your meal plan</p>
           <Link to={createPageUrl('Dashboard')}>
@@ -154,7 +153,6 @@ export default function Recipes() {
   
   return (
     <div className="min-h-screen bg-gray-50">
-      <Toaster position="top-center" richColors />
       
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-gray-100 print:hidden">
@@ -268,7 +266,7 @@ export default function Recipes() {
             className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 h-fit"
           >
             <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <span className="text-2xl">ðŸ¥˜</span>
+              <span className="text-2xl">🥘</span>
               Ingredients
             </h2>
             
@@ -372,7 +370,7 @@ export default function Recipes() {
                 animate={{ opacity: 1, scale: 1 }}
                 className="mt-6 p-4 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl text-white text-center"
               >
-                <span className="text-2xl mr-2">ðŸŽ‰</span>
+                <span className="text-2xl mr-2">🎉</span>
                 <span className="font-semibold">All done! Enjoy your delicious meal!</span>
               </motion.div>
             )}

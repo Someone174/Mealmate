@@ -5,7 +5,7 @@ import { ArrowLeft, User, ChefHat, Database, Bell, Trash2, Download, AlertCircle
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast, Toaster } from 'sonner';
+import { toast } from 'sonner';
 import { createPageUrl } from '@/utils';
 import {
   getCurrentUser,
@@ -141,8 +141,6 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Toaster position="top-center" richColors />
-
       <nav className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Link to={createPageUrl('Dashboard')} className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-800 text-sm">
