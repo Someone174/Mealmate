@@ -275,9 +275,20 @@ export const getAllRecipes = () => [
 export const getRecipeById = (id) =>
   getAllRecipes().find(r => r.id === id) || null;
 
-export const getRandomRecipe = (type) => {
-  const pool = type ? (RECIPES[type] || []) : getAllRecipes();
+export const getRandomRecipe = (type, prefs = [], usedIds = [], budget = 500, servings = 2) => {
+  let pool = type ? (RECIPES[type] || []) : getAllRecipes();
   if (!pool.length) return null;
+
+  if (prefs?.length) {
+    const filtered = pool.filter(r => prefs.every(p => r.tags?.includes(p)));
+    if (filtered.length > 0) pool = filtered;
+  }
+
+  if (usedIds?.length) {
+    const available = pool.filter(r => !usedIds.includes(r.id));
+    if (available.length > 0) pool = available;
+  }
+
   return pool[Math.floor(Math.random() * pool.length)];
 };
 
@@ -330,25 +341,60 @@ export const planToDayArray = (plan) => {
   return DAYS.map(day => ({ day, ...(normalized[day] || {}) }));
 };
 
-export const generateWeeklyPlan = () => {
+export const generateWeeklyPlan = (dietaryPrefs = [], cuisinePrefs = [], budget = 500, servings = 2) => {
+  const allPrefs = [...(dietaryPrefs || []), ...(cuisinePrefs || [])];
+
+  const filterPool = (pool) => {
+    if (!allPrefs.length) return pool;
+    const filtered = pool.filter(r => allPrefs.every(p => r.tags?.includes(p)));
+    return filtered.length >= 3 ? filtered : pool;
+  };
+
+  const usedIds = new Set();
+  const pickUnique = (type) => {
+    const base = type ? (RECIPES[type] || []) : getAllRecipes();
+    const filtered = filterPool(base);
+    const available = filtered.filter(r => !usedIds.has(r.id));
+    const source = available.length ? available : filtered;
+    if (!source.length) return null;
+    const recipe = source[Math.floor(Math.random() * source.length)];
+    if (recipe) usedIds.add(recipe.id);
+    return recipe;
+  };
+
   return Object.fromEntries(DAYS.map(day => [day, {
-    breakfast: getRandomRecipe('breakfast') || getRandomRecipe(),
-    lunch: getRandomRecipe('lunch') || getRandomRecipe(),
-    dinner: getRandomRecipe('dinner') || getRandomRecipe(),
+    breakfast: pickUnique('breakfast'),
+    lunch: pickUnique('lunch'),
+    dinner: pickUnique('dinner'),
   }]));
 };
 
-export const generateWeeklyPlanFromDBRecipes = (recipes, _preferences = []) => {
+export const generateWeeklyPlanFromDBRecipes = (recipes, preferences = []) => {
   if (!recipes?.length) return generateWeeklyPlan();
+
+  const filterByPrefs = (pool) => {
+    if (!preferences?.length) return pool;
+    const filtered = pool.filter(r => preferences.every(p => r.tags?.includes(p)));
+    return filtered.length >= 3 ? filtered : pool;
+  };
+
   const byType = {
-    breakfast: recipes.filter(r => r.meal_type === 'breakfast'),
-    lunch: recipes.filter(r => r.meal_type === 'lunch'),
-    dinner: recipes.filter(r => r.meal_type === 'dinner'),
+    breakfast: filterByPrefs(recipes.filter(r => r.meal_type === 'breakfast')),
+    lunch: filterByPrefs(recipes.filter(r => r.meal_type === 'lunch')),
+    dinner: filterByPrefs(recipes.filter(r => r.meal_type === 'dinner')),
   };
+
+  const usedIds = new Set();
   const pick = (type) => {
-    const pool = byType[type].length ? byType[type] : recipes;
-    return pool[Math.floor(Math.random() * pool.length)];
+    const base = byType[type].length ? byType[type] : filterByPrefs(recipes);
+    const available = base.filter(r => !usedIds.has(r.id));
+    const source = available.length ? available : base;
+    if (!source.length) return null;
+    const recipe = source[Math.floor(Math.random() * source.length)];
+    if (recipe) usedIds.add(recipe.id);
+    return recipe;
   };
+
   return Object.fromEntries(DAYS.map(day => [day, {
     breakfast: pick('breakfast'),
     lunch: pick('lunch'),
@@ -356,7 +402,7 @@ export const generateWeeklyPlanFromDBRecipes = (recipes, _preferences = []) => {
   }]));
 };
 
-export const compileGroceryList = (weekPlan) => {
+export const compileGroceryList = (weekPlan, servings = 2) => {
   if (!weekPlan) return {};
   const itemMap = {};
   planToDayArray(weekPlan).forEach(dayPlan => {

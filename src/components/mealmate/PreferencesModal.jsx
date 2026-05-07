@@ -30,6 +30,13 @@ export default function PreferencesModal({ isOpen, onClose, currentPrefs, onSave
     cuisines: [],
     weeklyBudget: 500
   });
+
+  // Sync local state when parent passes updated preferences (e.g. after save)
+  React.useEffect(() => {
+    if (currentPrefs) {
+      setPrefs(currentPrefs);
+    }
+  }, [currentPrefs]);
   
   const toggleDietary = (id) => {
     setPrefs(prev => ({

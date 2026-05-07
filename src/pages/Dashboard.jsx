@@ -32,6 +32,7 @@ import WeeklyCalendar from '@/components/mealmate/WeeklyCalendar';
 import GroceryList from '@/components/mealmate/GroceryList';
 import PreferencesModal from '@/components/mealmate/PreferencesModal';
 import MealPlannerChat from '@/components/mealmate/MealPlannerChat';
+import NutritionSummary from '@/components/mealmate/NutritionSummary';
 import { toast, Toaster } from 'sonner';
 
 export default function Dashboard() {
@@ -244,13 +245,16 @@ export default function Dashboard() {
 
     await updateUserPreferences(user.id || user.username, newPrefs);
     setUser(prev => ({ ...prev, preferences: newPrefs }));
-    
-    // Regenerate plan with new preferences
+
+    // Regenerate plan with new preferences, preferring the loaded DB recipes
     const dietaryPrefs = newPrefs.dietary || [];
     const cuisinePrefs = newPrefs.cuisines || [];
     const budget = newPrefs.weeklyBudget || 500;
     const servings = newPrefs.servings || 2;
-    const newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+    const dbRaw = getAllRecipes();
+    const newPlan = dbRaw.length >= 21
+      ? generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs])
+      : generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
     setPlan(newPlan);
     saveMealPlan(user, newPlan);
     
@@ -476,8 +480,11 @@ export default function Dashboard() {
                 onUnskip={handleUnskipMeal}
               />
             </motion.div>
+
+            {/* Weekly Nutrition Summary */}
+            <NutritionSummary plan={plan} />
           </div>
-          
+
           {/* Sidebar - Grocery List */}
           <div className={`lg:block ${showGrocery ? 'fixed inset-0 z-50 bg-white p-4 overflow-y-auto lg:relative lg:inset-auto lg:bg-transparent lg:p-0' : 'hidden'}`}>
             {showGrocery && (
@@ -496,14 +503,15 @@ export default function Dashboard() {
               transition={{ delay: 0.2 }}
               className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 sticky top-24"
             >
-              <GroceryList 
-                groceryList={groceryList} 
+              <GroceryList
+                groceryList={groceryList}
                 onToggleItem={handleToggleGroceryItem}
                 pricedList={pricedGroceryList}
                 onRefreshPrices={handleRefreshPrices}
                 loadingPrices={loadingPrices}
                 storeTotals={storeTotals}
                 cheapestStore={cheapestStore}
+                weeklyBudget={user?.preferences?.weeklyBudget || 500}
               />
             </motion.div>
           </div>

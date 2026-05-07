@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Printer, ShoppingCart, ChevronDown, ChevronUp, Sparkles, TrendingDown, RefreshCw } from 'lucide-react';
+import { Printer, ShoppingCart, ChevronDown, ChevronUp, Sparkles, TrendingDown, RefreshCw, Wallet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,7 @@ const aisleColors = {
   'Deli': 'bg-pink-50 border-pink-200 text-pink-700'
 };
 
-export default function GroceryList({ groceryList, onToggleItem, pricedList, onRefreshPrices, loadingPrices, storeTotals, cheapestStore }) {
+export default function GroceryList({ groceryList, onToggleItem, pricedList, onRefreshPrices, loadingPrices, storeTotals, cheapestStore, weeklyBudget }) {
   const [expandedAisles, setExpandedAisles] = useState(
     Object.keys(groceryList || {}).reduce((acc, key) => ({ ...acc, [key]: true }), {})
   );
@@ -151,6 +151,44 @@ export default function GroceryList({ groceryList, onToggleItem, pricedList, onR
         </motion.div>
       )}
       
+      {/* Budget tracker */}
+      {cheapestStore && weeklyBudget && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl p-4 bg-gray-50 border border-gray-200"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-gray-700">
+              <Wallet className="w-4 h-4" />
+              <span className="text-sm font-semibold">Weekly Budget</span>
+            </div>
+            <span className={`text-sm font-bold ${
+              cheapestStore.total > weeklyBudget ? 'text-red-600' :
+              cheapestStore.total > weeklyBudget * 0.85 ? 'text-amber-600' : 'text-emerald-600'
+            }`}>
+              {cheapestStore.total.toFixed(0)} / {weeklyBudget} QAR
+            </span>
+          </div>
+          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min((cheapestStore.total / weeklyBudget) * 100, 100)}%` }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+              className={`h-full rounded-full ${
+                cheapestStore.total > weeklyBudget ? 'bg-red-500' :
+                cheapestStore.total > weeklyBudget * 0.85 ? 'bg-amber-400' : 'bg-emerald-500'
+              }`}
+            />
+          </div>
+          <p className="text-xs text-gray-400 mt-1.5">
+            {cheapestStore.total <= weeklyBudget
+              ? `${(weeklyBudget - cheapestStore.total).toFixed(0)} QAR under budget at ${cheapestStore.storeName}`
+              : `${(cheapestStore.total - weeklyBudget).toFixed(0)} QAR over budget`}
+          </p>
+        </motion.div>
+      )}
+
       {loadingPrices && (
         <motion.div
           initial={{ opacity: 0 }}
