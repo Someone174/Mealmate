@@ -1,5 +1,7 @@
 // Price Service for Qatari Grocery Stores.
 // Uses /api/prices for configured real sources, then falls back to local estimates.
+// Prices are cached in memory for the browser session so the same item always
+// shows the same estimated price within one visit — no flickering on re-renders.
 
 const STORES = {
   lulu: { name: 'Lulu Hypermarket', color: 'bg-red-50 text-red-700 border-red-200' },
@@ -108,25 +110,34 @@ const BASE_PRICES = {
   'Corn': 3.5
 };
 
-// Generate realistic price variations per store
-const generateStorePrices = (basePrice) => {
-  return {
-    lulu: {
-      price: basePrice * (0.92 + Math.random() * 0.16),
-      inStock: Math.random() > 0.05,
-      delivery: Math.random() > 0.3
-    },
-    carrefour: {
-      price: basePrice * (0.90 + Math.random() * 0.20),
-      inStock: Math.random() > 0.08,
-      delivery: Math.random() > 0.4
-    },
-    megamart: {
-      price: basePrice * (0.95 + Math.random() * 0.10),
-      inStock: Math.random() > 0.10,
-      delivery: Math.random() > 0.5
-    }
+// Session-scoped price cache: item name → store prices object.
+// Populated lazily on first lookup; cleared when the page is reloaded.
+const _sessionPriceCache = new Map();
+
+// Deterministic-ish hash so the same item name always seeds the same variation.
+const _simpleHash = (str) => {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+  return Math.abs(h);
+};
+
+// Generate realistic price variations per store, stable for the session.
+const generateStorePrices = (basePrice, itemName = '') => {
+  const cached = _sessionPriceCache.get(itemName);
+  if (cached) return cached;
+
+  const seed = _simpleHash(itemName || String(basePrice));
+  // Use the hash to produce consistent pseudo-random offsets per store
+  const r = (offset) => ((seed * (offset + 1)) % 1000) / 1000;
+
+  const prices = {
+    lulu:      { price: basePrice * (0.92 + r(1) * 0.16), inStock: r(4) > 0.05, delivery: r(7) > 0.3 },
+    carrefour: { price: basePrice * (0.90 + r(2) * 0.20), inStock: r(5) > 0.08, delivery: r(8) > 0.4 },
+    megamart:  { price: basePrice * (0.95 + r(3) * 0.10), inStock: r(6) > 0.10, delivery: r(9) > 0.5 },
   };
+
+  _sessionPriceCache.set(itemName, prices);
+  return prices;
 };
 
 const buildPriceData = (item, realPriceData = null) => {
@@ -154,7 +165,7 @@ const buildPriceData = (item, realPriceData = null) => {
   }
 
   const base = BASE_PRICES[item.item] || BASE_PRICES[item.item?.toLowerCase()] || 5.0;
-  const rawPrices = generateStorePrices(base);
+  const rawPrices = generateStorePrices(base, item.item || '');
   const stores = {};
   Object.entries(rawPrices).forEach(([key, data]) => {
     stores[key] = { ...data, name: STORES[key].name };

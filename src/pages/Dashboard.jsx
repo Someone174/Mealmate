@@ -121,37 +121,35 @@ export default function Dashboard() {
     navigate(createPageUrl('Landing'));
   };
   
-  const handleRegeneratePlan = () => {
+  const handleRegeneratePlan = async () => {
     if (!user) return;
     setRefreshing(true);
-
-    const doRegen = async () => {
-        const dietaryPrefs = user.preferences?.dietary || [];
+    try {
+      const dietaryPrefs = user.preferences?.dietary || [];
       const cuisinePrefs = user.preferences?.cuisines || [];
       const budget = user.preferences?.weeklyBudget || 500;
       const servings = user.preferences?.servings || 2;
 
       const dbRaw = getAllRecipes();
-      let newPlan;
-      if (dbRaw.length >= 21) {
-        newPlan = generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs]);
-      } else {
-        newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
-      }
+      const newPlan = dbRaw.length >= 21
+        ? generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs])
+        : generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+
       setPlan(newPlan);
       saveMealPlan(user, newPlan);
 
-      const groceries = compileGroceryList(newPlan, user.preferences?.servings || 2);
+      const groceries = compileGroceryList(newPlan, servings);
       setGroceryList(groceries);
       saveGroceryList(user, groceries);
 
-      setRefreshing(false);
       toast.success('Fresh meal plan generated.');
-      
-      // Fetch new prices
       fetchPrices(groceries);
-    };
-    doRegen();
+    } catch (err) {
+      console.error('Failed to regenerate plan', err);
+      toast.error('Could not generate a new plan. Please try again.');
+    } finally {
+      setRefreshing(false);
+    }
   };
   
   const handleRefreshPrices = () => {
@@ -244,23 +242,26 @@ export default function Dashboard() {
 
     await updateUserPreferences(user.id || user.username, newPrefs);
     setUser(prev => ({ ...prev, preferences: newPrefs }));
-    
-    // Regenerate plan with new preferences
+
     const dietaryPrefs = newPrefs.dietary || [];
     const cuisinePrefs = newPrefs.cuisines || [];
     const budget = newPrefs.weeklyBudget || 500;
     const servings = newPrefs.servings || 2;
-    const newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+    const preferences = [...dietaryPrefs, ...cuisinePrefs];
+
+    const dbRaw = getAllRecipes();
+    const newPlan = dbRaw.length >= 21
+      ? generateWeeklyPlanFromDBRecipes(dbRaw, preferences)
+      : generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+
     setPlan(newPlan);
     saveMealPlan(user, newPlan);
-    
-    const groceries = compileGroceryList(newPlan, newPrefs.servings || 2);
+
+    const groceries = compileGroceryList(newPlan, servings);
     setGroceryList(groceries);
     saveGroceryList(user, groceries);
-    
+
     toast.success('Preferences updated. New plan ready.');
-    
-    // Fetch prices for new plan
     fetchPrices(groceries);
   };
   
