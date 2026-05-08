@@ -340,14 +340,18 @@ export const generateWeeklyPlan = () => {
 
 export const generateWeeklyPlanFromDBRecipes = (recipes, _preferences = []) => {
   if (!recipes?.length) return generateWeeklyPlan();
+  const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
   const byType = {
-    breakfast: recipes.filter(r => r.meal_type === 'breakfast'),
-    lunch: recipes.filter(r => r.meal_type === 'lunch'),
-    dinner: recipes.filter(r => r.meal_type === 'dinner'),
+    breakfast: shuffle(recipes.filter(r => r.meal_type === 'breakfast')),
+    lunch:     shuffle(recipes.filter(r => r.meal_type === 'lunch')),
+    dinner:    shuffle(recipes.filter(r => r.meal_type === 'dinner')),
   };
+  const indices = { breakfast: 0, lunch: 0, dinner: 0 };
   const pick = (type) => {
-    const pool = byType[type].length ? byType[type] : recipes;
-    return pool[Math.floor(Math.random() * pool.length)];
+    const pool = byType[type].length ? byType[type] : shuffle(recipes);
+    const idx = indices[type] % pool.length;
+    indices[type]++;
+    return pool[idx];
   };
   return Object.fromEntries(DAYS.map(day => [day, {
     breakfast: pick('breakfast'),

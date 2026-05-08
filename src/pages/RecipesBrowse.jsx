@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { 
-  Search, Filter, X, Clock, ChefHat, 
-  ArrowLeft, SlidersHorizontal, Flame
+import {
+  Search, Filter, X, Clock, ChefHat,
+  ArrowLeft, SlidersHorizontal, Flame, Heart
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAllRecipes, loadRecipesDB } from '@/components/mealmate/MealData';
+import { getCurrentUser, addFavorite, removeFavorite, getFavorites } from '@/components/mealmate/LocalStorageService';
 
 
 
@@ -35,9 +36,14 @@ const cuisineTypes = [
 
 export default function RecipesBrowse() {
   const [dbReady, setDbReady] = useState(false);
+  const [user, setUser] = useState(null);
+  const [favorites, setFavorites] = useState([]);
 
   useEffect(() => {
     loadRecipesDB().then(() => setDbReady(true));
+    const u = getCurrentUser();
+    setUser(u);
+    if (u) setFavorites(getFavorites(u.id || u.username));
   }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,6 +114,20 @@ export default function RecipesBrowse() {
     setSelectedCuisines(prev =>
       prev.includes(cuisine) ? prev.filter(c => c !== cuisine) : [...prev, cuisine]
     );
+  };
+
+  const toggleFavorite = (e, recipeId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) return;
+    const key = user.id || user.username;
+    if (favorites.includes(recipeId)) {
+      removeFavorite(key, recipeId);
+      setFavorites(prev => prev.filter(id => id !== recipeId));
+    } else {
+      addFavorite(key, recipeId);
+      setFavorites(prev => [...prev, recipeId]);
+    }
   };
 
   const clearFilters = () => {
@@ -364,14 +384,37 @@ export default function RecipesBrowse() {
               >
                 <Link to={`${createPageUrl('Recipes')}?id=${recipe.id}`}>
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-all group">
-                    <div className="bg-gradient-to-br from-emerald-100 to-teal-100 h-32 flex items-center justify-center">
-                      <span className="text-6xl group-hover:scale-110 transition-transform">{recipe.image}</span>
+                    <div className="bg-gradient-to-br from-emerald-100 to-teal-100 h-32 flex items-center justify-center relative overflow-hidden">
+                      {recipe.img_src ? (
+                        <img
+                          src={recipe.img_src}
+                          alt={recipe.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling.style.display = 'flex'; }}
+                        />
+                      ) : null}
+                      <span
+                        className={`text-6xl group-hover:scale-110 transition-transform ${recipe.img_src ? 'hidden' : ''} items-center justify-center w-full h-full flex`}
+                      >
+                        {recipe.image || <ChefHat className="w-12 h-12 text-gray-300" />}
+                      </span>
+                      {user && (
+                        <button
+                          onClick={(e) => toggleFavorite(e, recipe.id)}
+                          className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-full shadow-sm hover:scale-110 transition-transform"
+                          aria-label={favorites.includes(recipe.id) ? 'Remove from favorites' : 'Save to favorites'}
+                        >
+                          <Heart
+                            className={`w-4 h-4 transition-colors ${favorites.includes(recipe.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`}
+                          />
+                        </button>
+                      )}
                     </div>
-                    
+
                     <div className="p-5">
                       <h3 className="font-bold text-gray-800 mb-2 line-clamp-1">{recipe.name}</h3>
                       <p className="text-sm text-gray-500 mb-4 line-clamp-2">{recipe.summary}</p>
-                      
+
                       <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
                         <div className="flex items-center gap-1">
                           <Clock className="w-4 h-4" />
@@ -382,7 +425,7 @@ export default function RecipesBrowse() {
                           <span>{recipe.calories} cal</span>
                         </div>
                       </div>
-                      
+
                       <div className="flex flex-wrap gap-1">
                         {recipe.tags.slice(0, 3).map(tag => (
                           <Badge key={tag} variant="secondary" className="text-xs">

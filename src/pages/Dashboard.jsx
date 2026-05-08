@@ -4,7 +4,7 @@ import { createPageUrl } from '@/utils';
 import {
   Settings, LogOut, User,
   Sparkles, TrendingUp, ChefHat, Share2, Check,
-  ShoppingCart, MessageCircle, Hand
+  ShoppingCart, MessageCircle, Hand, BookOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -32,6 +32,7 @@ import WeeklyCalendar from '@/components/mealmate/WeeklyCalendar';
 import GroceryList from '@/components/mealmate/GroceryList';
 import PreferencesModal from '@/components/mealmate/PreferencesModal';
 import MealPlannerChat from '@/components/mealmate/MealPlannerChat';
+import WeeklyNutritionSummary from '@/components/mealmate/WeeklyNutritionSummary';
 import { toast, Toaster } from 'sonner';
 
 export default function Dashboard() {
@@ -245,12 +246,13 @@ export default function Dashboard() {
     await updateUserPreferences(user.id || user.username, newPrefs);
     setUser(prev => ({ ...prev, preferences: newPrefs }));
     
-    // Regenerate plan with new preferences
+    // Regenerate plan with new preferences, using DB recipes when available
     const dietaryPrefs = newPrefs.dietary || [];
     const cuisinePrefs = newPrefs.cuisines || [];
-    const budget = newPrefs.weeklyBudget || 500;
-    const servings = newPrefs.servings || 2;
-    const newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+    const dbRaw = getAllRecipes();
+    const newPlan = dbRaw.length >= 21
+      ? generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...(newPrefs.cuisines || [])])
+      : generateWeeklyPlan();
     setPlan(newPlan);
     saveMealPlan(user, newPlan);
     
@@ -283,7 +285,7 @@ export default function Dashboard() {
   
   // Calculate planned meals count
   const totalMeals = 21;
-  const plannedMeals = plan ? Object.values(plan).flatMap(d => Object.values(d)).length : 0;
+  const plannedMeals = plan ? Object.values(plan).flatMap(d => Object.values(d)).filter(m => m && !m.skipped).length : 0;
   const progress = (plannedMeals / totalMeals) * 100;
   
   // Get preference summary
@@ -358,6 +360,13 @@ export default function Dashboard() {
               >
                 <Settings className="w-5 h-5" />
               </Button>
+
+              <Link to={createPageUrl('RecipesBrowse')} aria-label="Browse recipes" title="Browse recipes">
+                <Button variant="ghost" size="sm" className="text-gray-600 hidden sm:inline-flex gap-1.5">
+                  <BookOpen className="w-5 h-5" />
+                  <span className="hidden lg:inline text-sm">Recipes</span>
+                </Button>
+              </Link>
 
               <Link to="/Settings" aria-label="Open settings">
                 <Button variant="ghost" size="sm" className="text-gray-600 hidden sm:inline-flex">
@@ -469,13 +478,16 @@ export default function Dashboard() {
                 Your Weekly Menu
               </h2>
               
-              <WeeklyCalendar 
-                plan={plan} 
+              <WeeklyCalendar
+                plan={plan}
                 onSwap={handleSwapMeal}
                 onSkip={handleSkipMeal}
                 onUnskip={handleUnskipMeal}
               />
             </motion.div>
+
+            {/* Weekly Nutrition Summary */}
+            <WeeklyNutritionSummary plan={plan} />
           </div>
           
           {/* Sidebar - Grocery List */}
