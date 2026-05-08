@@ -146,7 +146,7 @@ export default function CommandExecutor({ commands, onCommandResults }) {
     if (commands?.length && !running && !done) {
       runAll();
     }
-  }, [commands]);
+  }, [commands, running, done]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const runAll = async () => {
     setRunning(true);

@@ -6,9 +6,15 @@ import MealCard from './MealCard';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner'];
 
+const getTodayIdx = () => {
+  const day = new Date().getDay(); // 0 = Sunday
+  return day === 0 ? 6 : day - 1; // Map to Mon=0 … Sun=6
+};
+
 export default function WeeklyCalendar({ plan, onSwap, onSkip, onUnskip }) {
   const [selectedDay, setSelectedDay] = useState(0);
   const currentDay = DAYS[selectedDay];
+  const todayIdx = getTodayIdx();
 
   const nextDay = () => setSelectedDay((prev) => (prev + 1) % 7);
   const prevDay = () => setSelectedDay((prev) => (prev - 1 + 7) % 7);
@@ -86,7 +92,7 @@ export default function WeeklyCalendar({ plan, onSwap, onSkip, onUnskip }) {
             {DAYS.map((day, dayIdx) => (
               <div key={day} className="space-y-3">
                 <div className={`text-center p-3 rounded-xl ${
-                  dayIdx === new Date().getDay() - 1 || (dayIdx === 6 && new Date().getDay() === 0)
+                  dayIdx === todayIdx
                     ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
                     : 'bg-gray-100 text-gray-700'
                 }`}>

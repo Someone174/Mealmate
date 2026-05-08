@@ -21,13 +21,16 @@ export default function MealCard({ recipe, mealType, day, onSwap, onSkip, onUnsk
     dinner: '🌙 Dinner'
   };
   
-  const RecipeIcon = ({ size = 'large' }) => (
-    recipe.img_src ? (
-      <img src={recipe.img_src} alt="" className="w-full h-full object-cover rounded-[inherit]" />
-    ) : (
-      <ChefHat className={size === 'small' ? 'w-5 h-5 text-white' : 'w-9 h-9 text-gray-400'} />
-    )
-  );
+  const RecipeIcon = ({ size = 'large' }) => {
+    const imgSrc = recipe.img_src || (recipe.image?.startsWith('http') ? recipe.image : null);
+    if (imgSrc) {
+      return <img src={imgSrc} alt="" className="w-full h-full object-cover rounded-[inherit]" />;
+    }
+    if (recipe.image) {
+      return <span className={size === 'small' ? 'text-2xl leading-none' : 'text-5xl leading-none'}>{recipe.image}</span>;
+    }
+    return <ChefHat className={size === 'small' ? 'w-5 h-5 text-white' : 'w-9 h-9 text-gray-400'} />;
+  };
 
   if (compact) {
     return (

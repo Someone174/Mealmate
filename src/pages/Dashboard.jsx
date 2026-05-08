@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import {
   Settings, LogOut, User,
   Sparkles, TrendingUp, ChefHat, Share2, Check,
-  ShoppingCart, MessageCircle, Hand
+  ShoppingCart, MessageCircle, Hand,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -49,6 +49,7 @@ export default function Dashboard() {
   const [copied, setCopied] = useState(false);
   const [scraperStatus, setScraperStatus] = useState('');
   const [showChat, setShowChat] = useState(false);
+  const priceReqIdRef = useRef(0);
 
   // Mount background recipe scraper (initial load + every 4 min refresh)
   useRecipeScraper({ onStatusUpdate: setScraperStatus });
@@ -97,22 +98,29 @@ export default function Dashboard() {
   const fetchPrices = async (groceries) => {
     if (!groceries) return;
     setLoadingPrices(true);
-    
+    const reqId = ++priceReqIdRef.current;
+
     try {
       const priced = await fetchPricesForGroceryList(groceries);
+      if (reqId !== priceReqIdRef.current) return; // discard stale result
       setPricedGroceryList(priced);
-      
+
       const totals = calculateTotalByStore(priced);
       setStoreTotals(totals);
-      
+
       const cheapest = getCheapestStoreForList(totals);
       setCheapestStore(cheapest);
-      
-      toast.success(`Prices compared! Save ${cheapest.savings.toFixed(2)} QAR at ${cheapest.storeName}!`);
+
+      if (cheapest.savings >= 1) {
+        toast.success(`Prices compared! Save ${cheapest.savings.toFixed(2)} QAR at ${cheapest.storeName}.`);
+      } else {
+        toast.success('Prices compared!');
+      }
     } catch (error) {
+      if (reqId !== priceReqIdRef.current) return;
       toast.error('Failed to fetch prices. Please try again.');
     } finally {
-      setLoadingPrices(false);
+      if (reqId === priceReqIdRef.current) setLoadingPrices(false);
     }
   };
   
@@ -248,9 +256,14 @@ export default function Dashboard() {
     // Regenerate plan with new preferences
     const dietaryPrefs = newPrefs.dietary || [];
     const cuisinePrefs = newPrefs.cuisines || [];
-    const budget = newPrefs.weeklyBudget || 500;
-    const servings = newPrefs.servings || 2;
-    const newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+
+    const dbRaw = getAllRecipes();
+    let newPlan;
+    if (dbRaw.length >= 21) {
+      newPlan = generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs]);
+    } else {
+      newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs);
+    }
     setPlan(newPlan);
     saveMealPlan(user, newPlan);
     
