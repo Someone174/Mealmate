@@ -108,7 +108,7 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
 
       const extracted = extractMealPlan(fullText);
       if (extracted) {
-        setAppliedMsg('Plan ready! Click the button below to apply it.');
+        setAppliedMsg('Plan ready! Click the Apply button in the message above.');
       }
     } catch (err) {
       if (err?.name === 'AbortError' || controller.signal.aborted) {
