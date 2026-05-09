@@ -168,8 +168,8 @@ export default function Dashboard() {
     const allPrefs = [...dietaryPrefs, ...cuisinePrefs];
     const budget = user.preferences?.weeklyBudget || 500;
     const servings = user.preferences?.servings || 2;
-    const usedIds = Object.values(plan).flatMap(dayMeals => 
-      Object.values(dayMeals).map(r => r.id)
+    const usedIds = Object.values(plan).flatMap(dayMeals =>
+      Object.values(dayMeals).filter(Boolean).map(r => r.id)
     );
 
     const newRecipe = getRandomRecipe(mealType, allPrefs, usedIds, budget, servings);
@@ -248,9 +248,10 @@ export default function Dashboard() {
     // Regenerate plan with new preferences
     const dietaryPrefs = newPrefs.dietary || [];
     const cuisinePrefs = newPrefs.cuisines || [];
-    const budget = newPrefs.weeklyBudget || 500;
-    const servings = newPrefs.servings || 2;
-    const newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+    const dbRaw = getAllRecipes();
+    const newPlan = dbRaw.length >= 21
+      ? generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs])
+      : generateWeeklyPlan();
     setPlan(newPlan);
     saveMealPlan(user, newPlan);
     
@@ -281,9 +282,11 @@ export default function Dashboard() {
     }
   };
   
-  // Calculate planned meals count
+  // Calculate planned meals count (exclude skipped)
   const totalMeals = 21;
-  const plannedMeals = plan ? Object.values(plan).flatMap(d => Object.values(d)).length : 0;
+  const plannedMeals = plan
+    ? Object.values(plan).flatMap(d => Object.values(d)).filter(m => m && !m.skipped).length
+    : 0;
   const progress = (plannedMeals / totalMeals) * 100;
   
   // Get preference summary

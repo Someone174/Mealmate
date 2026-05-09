@@ -108,23 +108,35 @@ const BASE_PRICES = {
   'Corn': 3.5
 };
 
-// Generate realistic price variations per store
-const generateStorePrices = (basePrice) => {
+// Deterministic pseudo-random based on a string seed, so prices are stable
+// across re-renders for the same item. Uses a simple djb2-style hash.
+const seededRandom = (seed) => {
+  let h = 5381;
+  for (let i = 0; i < seed.length; i++) {
+    h = ((h << 5) + h) ^ seed.charCodeAt(i);
+    h = h >>> 0;
+  }
+  return (h % 10000) / 10000;
+};
+
+// Generate realistic price variations per store (stable per item name)
+const generateStorePrices = (basePrice, itemName = '') => {
+  const r = (suffix) => seededRandom(itemName + suffix);
   return {
     lulu: {
-      price: basePrice * (0.92 + Math.random() * 0.16),
-      inStock: Math.random() > 0.05,
-      delivery: Math.random() > 0.3
+      price: basePrice * (0.92 + r('lulu') * 0.16),
+      inStock: r('lulu_stock') > 0.05,
+      delivery: r('lulu_del') > 0.3
     },
     carrefour: {
-      price: basePrice * (0.90 + Math.random() * 0.20),
-      inStock: Math.random() > 0.08,
-      delivery: Math.random() > 0.4
+      price: basePrice * (0.90 + r('carrefour') * 0.20),
+      inStock: r('carrefour_stock') > 0.08,
+      delivery: r('carrefour_del') > 0.4
     },
     megamart: {
-      price: basePrice * (0.95 + Math.random() * 0.10),
-      inStock: Math.random() > 0.10,
-      delivery: Math.random() > 0.5
+      price: basePrice * (0.95 + r('megamart') * 0.10),
+      inStock: r('megamart_stock') > 0.10,
+      delivery: r('megamart_del') > 0.5
     }
   };
 };
@@ -154,7 +166,7 @@ const buildPriceData = (item, realPriceData = null) => {
   }
 
   const base = BASE_PRICES[item.item] || BASE_PRICES[item.item?.toLowerCase()] || 5.0;
-  const rawPrices = generateStorePrices(base);
+  const rawPrices = generateStorePrices(base, item.item || '');
   const stores = {};
   Object.entries(rawPrices).forEach(([key, data]) => {
     stores[key] = { ...data, name: STORES[key].name };

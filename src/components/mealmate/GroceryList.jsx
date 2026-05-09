@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import PriceComparison from './PriceComparison';
 
+const AISLE_ORDER = ['Produce', 'Proteins', 'Seafood', 'Dairy', 'Bakery', 'Pantry', 'Frozen', 'Deli'];
+
 const aisleIcons = {
   'Produce': '🥬',
   'Proteins': '🥩',
@@ -27,6 +29,9 @@ const aisleColors = {
   'Frozen': 'bg-cyan-50 border-cyan-200 text-cyan-700',
   'Deli': 'bg-pink-50 border-pink-200 text-pink-700'
 };
+
+const DEFAULT_AISLE_COLOR = 'bg-gray-50 border-gray-200 text-gray-700';
+const DEFAULT_AISLE_ICON = '🛒';
 
 export default function GroceryList({ groceryList, onToggleItem, pricedList, onRefreshPrices, loadingPrices, storeTotals, cheapestStore }) {
   const [expandedAisles, setExpandedAisles] = useState(
@@ -65,8 +70,9 @@ export default function GroceryList({ groceryList, onToggleItem, pricedList, onR
   };
   
   const sortedAisles = Object.keys(groceryList).sort((a, b) => {
-    const order = ['Produce', 'Proteins', 'Seafood', 'Dairy', 'Bakery', 'Pantry', 'Frozen', 'Deli'];
-    return order.indexOf(a) - order.indexOf(b);
+    const ai = AISLE_ORDER.indexOf(a);
+    const bi = AISLE_ORDER.indexOf(b);
+    return (ai === -1 ? AISLE_ORDER.length : ai) - (bi === -1 ? AISLE_ORDER.length : bi);
   });
   
   return (
@@ -167,10 +173,10 @@ export default function GroceryList({ groceryList, onToggleItem, pricedList, onR
           <div key={aisle} className="rounded-xl border border-gray-100 overflow-hidden bg-white">
             <button
               onClick={() => toggleAisle(aisle)}
-              className={`w-full flex items-center justify-between p-3 ${aisleColors[aisle]} border-b transition-colors`}
+              className={`w-full flex items-center justify-between p-3 ${aisleColors[aisle] || DEFAULT_AISLE_COLOR} border-b transition-colors`}
             >
               <div className="flex items-center gap-2">
-                <span className="text-lg">{aisleIcons[aisle] || '🛒'}</span>
+                <span className="text-lg">{aisleIcons[aisle] || DEFAULT_AISLE_ICON}</span>
                 <span className="font-medium">{aisle}</span>
                 <span className="text-xs opacity-70">
                   ({groceryList[aisle].filter(i => i.checked).length}/{groceryList[aisle].length})

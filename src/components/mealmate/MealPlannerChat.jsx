@@ -41,14 +41,25 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
   const base44Configured = Boolean(appParams.appId && appParams.appBaseUrl);
 
   useEffect(() => {
-    if (isOpen && !ready) {
-      setMessages([{
-        role: 'assistant',
-        content: "Hi! I'm MealMate AI.\n\nI can create personalized weekly meal plans tailored to your preferences, dietary needs, and budget. What would you like today?",
-      }]);
-      setReady(true);
+    if (isOpen) {
+      if (!ready) {
+        setMessages([{
+          role: 'assistant',
+          content: "Hi! I'm MealMate AI.\n\nI can create personalized weekly meal plans tailored to your preferences, dietary needs, and budget. What would you like today?",
+        }]);
+        setReady(true);
+      }
+    } else {
+      // Cancel any in-flight request, reset conversation for next open
+      abortRef.current?.abort();
+      abortRef.current = null;
+      setSending(false);
+      setReady(false);
+      setMessages([]);
+      setInput('');
+      setAppliedMsg('');
     }
-  }, [isOpen, ready]);
+  }, [isOpen]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
