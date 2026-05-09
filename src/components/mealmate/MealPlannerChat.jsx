@@ -42,13 +42,13 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
 
   useEffect(() => {
     if (isOpen && !ready) {
-      setMessages([{
-        role: 'assistant',
-        content: "Hi! I'm MealMate AI.\n\nI can create personalized weekly meal plans tailored to your preferences, dietary needs, and budget. What would you like today?",
-      }]);
+      const greeting = base44Configured
+        ? "Hi! I'm MealMate AI.\n\nI can create personalized weekly meal plans tailored to your preferences, dietary needs, and budget. What would you like today?"
+        : "Hi! I'm MealMate AI.\n\nThe AI backend will be active once this app is deployed to Google AI Studio. Until then, you can still generate and customise your meal plan manually from the dashboard.\n\nTry the starter prompts below to see what I'll be able to do!";
+      setMessages([{ role: 'assistant', content: greeting }]);
       setReady(true);
     }
-  }, [isOpen, ready]);
+  }, [isOpen, ready, base44Configured]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -68,7 +68,11 @@ export default function MealPlannerChat({ user, isOpen, onClose, onPlanUpdate })
     if (!input.trim() || sending) return;
 
     if (!base44Configured) {
-      toast.error('AI Planner is not configured. Add VITE_BASE44_APP_ID and VITE_BASE44_APP_BASE_URL.');
+      toast.error(
+        'AI Planner is not yet active. ' +
+        'It will be enabled automatically when deployed to Google AI Studio. ' +
+        'See PLEASE_NOTE.md for details.'
+      );
       return;
     }
 

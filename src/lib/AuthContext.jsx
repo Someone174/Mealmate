@@ -31,20 +31,30 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings] = useState(false);
-  const [authError] = useState(null);
+  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
+  const [authError, setAuthError] = useState(null);
   const [appPublicSettings] = useState({ id: 'local', public_settings: {} });
 
   useEffect(() => {
     let unsub = null;
 
     if (isSupabaseConfigured) {
-      supabase.auth.getSession().then(({ data }) => {
-        const u = buildUserFromSession(data?.session);
-        setCurrentUserCache(u);
-        setUser(u);
-        setIsAuthenticated(Boolean(u));
+      setIsLoadingPublicSettings(true);
+      supabase.auth.getSession().then(({ data, error }) => {
+        if (error) {
+          setAuthError({ type: 'auth_error', message: error.message });
+        } else {
+          const u = buildUserFromSession(data?.session);
+          setCurrentUserCache(u);
+          setUser(u);
+          setIsAuthenticated(Boolean(u));
+        }
         setIsLoadingAuth(false);
+        setIsLoadingPublicSettings(false);
+      }).catch(err => {
+        setAuthError({ type: 'auth_error', message: err.message });
+        setIsLoadingAuth(false);
+        setIsLoadingPublicSettings(false);
       });
 
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -52,6 +62,7 @@ export const AuthProvider = ({ children }) => {
         setCurrentUserCache(u);
         setUser(u);
         setIsAuthenticated(Boolean(u));
+        setAuthError(null);
       });
       unsub = data?.subscription;
     } else {

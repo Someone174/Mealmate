@@ -6,6 +6,7 @@ export const MEAL_TYPES = ['breakfast','lunch','dinner'];
 
 // Fetch /recipes-db.json once and merge into RECIPES in-place.
 // All sync functions (getAllRecipes, getRecipeById, etc.) automatically see the data.
+// Promise is reset on failure so the next call will retry.
 export const loadRecipesDB = () => {
   if (_dbLoadPromise) return _dbLoadPromise;
   _dbLoadPromise = fetch('/recipes-db.json')
@@ -15,7 +16,10 @@ export const loadRecipesDB = () => {
       if (db.lunch?.length)     RECIPES.lunch    = [...RECIPES.lunch,    ...db.lunch];
       if (db.dinner?.length)    RECIPES.dinner   = [...RECIPES.dinner,   ...db.dinner];
     })
-    .catch(e => console.warn('Could not load recipes-db.json:', e));
+    .catch(e => {
+      console.warn('Could not load recipes-db.json:', e);
+      _dbLoadPromise = null; // allow retry on next call
+    });
   return _dbLoadPromise;
 };
 
@@ -247,7 +251,6 @@ export const RECIPES = {
       ingredients: [
         { item: 'Sweet potato', amount: '1 large', aisle: 'Produce' },
         { item: 'Bell pepper', amount: '1/2 cup diced', aisle: 'Produce' },
- 
         { item: 'Onion', amount: '1/2 diced', aisle: 'Produce' },
         { item: 'Egg', amount: '2 large', aisle: 'Dairy' },
         { item: 'Olive oil', amount: '1 tbsp', aisle: 'Pantry' }
@@ -275,9 +278,22 @@ export const getAllRecipes = () => [
 export const getRecipeById = (id) =>
   getAllRecipes().find(r => r.id === id) || null;
 
-export const getRandomRecipe = (type) => {
-  const pool = type ? (RECIPES[type] || []) : getAllRecipes();
+// prefs: array of tag strings (e.g. ['vegetarian', 'quick'])
+// usedIds: array of recipe IDs already in the current plan (for deduplication)
+export const getRandomRecipe = (type, prefs = [], usedIds = []) => {
+  let pool = type ? (RECIPES[type] || []) : getAllRecipes();
   if (!pool.length) return null;
+
+  // Prefer recipes not already in the plan
+  const fresh = pool.filter(r => !usedIds.includes(r.id));
+  if (fresh.length > 0) pool = fresh;
+
+  // Soft-filter by preference tags — fall back to full pool if too restrictive
+  if (prefs.length > 0) {
+    const prefFiltered = pool.filter(r => r.tags?.some(t => prefs.includes(t)));
+    if (prefFiltered.length > 0) pool = prefFiltered;
+  }
+
   return pool[Math.floor(Math.random() * pool.length)];
 };
 
@@ -330,33 +346,57 @@ export const planToDayArray = (plan) => {
   return DAYS.map(day => ({ day, ...(normalized[day] || {}) }));
 };
 
-export const generateWeeklyPlan = () => {
-  return Object.fromEntries(DAYS.map(day => [day, {
-    breakfast: getRandomRecipe('breakfast') || getRandomRecipe(),
-    lunch: getRandomRecipe('lunch') || getRandomRecipe(),
-    dinner: getRandomRecipe('dinner') || getRandomRecipe(),
-  }]));
+export const generateWeeklyPlan = (dietaryPrefs = [], cuisinePrefs = []) => {
+  const prefs = [...dietaryPrefs, ...cuisinePrefs];
+  const usedIds = [];
+  return Object.fromEntries(DAYS.map(day => {
+    const breakfast = getRandomRecipe('breakfast', prefs, usedIds) || getRandomRecipe('breakfast');
+    if (breakfast) usedIds.push(breakfast.id);
+    const lunch = getRandomRecipe('lunch', prefs, usedIds) || getRandomRecipe('lunch');
+    if (lunch) usedIds.push(lunch.id);
+    const dinner = getRandomRecipe('dinner', prefs, usedIds) || getRandomRecipe('dinner');
+    if (dinner) usedIds.push(dinner.id);
+    return [day, { breakfast, lunch, dinner }];
+  }));
 };
 
-export const generateWeeklyPlanFromDBRecipes = (recipes, _preferences = []) => {
+export const generateWeeklyPlanFromDBRecipes = (recipes, preferences = []) => {
   if (!recipes?.length) return generateWeeklyPlan();
+
+  // Soft-filter by preference tags — fall back to all recipes if too few remain
+  const filtered = preferences.length > 0
+    ? recipes.filter(r => r.tags?.some(t => preferences.includes(t)))
+    : recipes;
+  const pool = filtered.length >= 3 ? filtered : recipes;
+
   const byType = {
-    breakfast: recipes.filter(r => r.meal_type === 'breakfast'),
-    lunch: recipes.filter(r => r.meal_type === 'lunch'),
-    dinner: recipes.filter(r => r.meal_type === 'dinner'),
+    breakfast: pool.filter(r => r.meal_type === 'breakfast'),
+    lunch: pool.filter(r => r.meal_type === 'lunch'),
+    dinner: pool.filter(r => r.meal_type === 'dinner'),
   };
+
+  const usedIds = [];
   const pick = (type) => {
-    const pool = byType[type].length ? byType[type] : recipes;
-    return pool[Math.floor(Math.random() * pool.length)];
+    const typePool = byType[type].length ? byType[type] : pool;
+    const fresh = typePool.filter(r => !usedIds.includes(r.id));
+    const source = fresh.length > 0 ? fresh : typePool;
+    return source[Math.floor(Math.random() * source.length)];
   };
-  return Object.fromEntries(DAYS.map(day => [day, {
-    breakfast: pick('breakfast'),
-    lunch: pick('lunch'),
-    dinner: pick('dinner')
-  }]));
+
+  return Object.fromEntries(DAYS.map(day => {
+    const breakfast = pick('breakfast');
+    if (breakfast) usedIds.push(breakfast.id);
+    const lunch = pick('lunch');
+    if (lunch) usedIds.push(lunch.id);
+    const dinner = pick('dinner');
+    if (dinner) usedIds.push(dinner.id);
+    return [day, { breakfast, lunch, dinner }];
+  }));
 };
 
-export const compileGroceryList = (weekPlan) => {
+// servings parameter is accepted for API consistency; per-ingredient amount
+// scaling requires parsing fractional strings and is left for a future pass.
+export const compileGroceryList = (weekPlan, _servings) => {
   if (!weekPlan) return {};
   const itemMap = {};
   planToDayArray(weekPlan).forEach(dayPlan => {

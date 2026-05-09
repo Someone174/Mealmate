@@ -11,7 +11,9 @@ const LIMITS = {
 
 const todayKey = () => {
   const d = new Date();
-  return `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}-${d.getUTCDate()}`;
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${mm}-${dd}`;
 };
 
 const storageKey = (userId) => `mealmate_ai_uses_${userId || 'anon'}_${todayKey()}`;
