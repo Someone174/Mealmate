@@ -14,6 +14,7 @@ import Pricing from './pages/Pricing';
 import Settings from './pages/Settings';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
+import Nutrition from './pages/Nutrition';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -65,6 +66,7 @@ const AuthenticatedApp = () => {
       <Route path="/Settings" element={<Settings />} />
       <Route path="/Privacy" element={<Privacy />} />
       <Route path="/Terms" element={<Terms />} />
+      <Route path="/Nutrition" element={<Nutrition />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

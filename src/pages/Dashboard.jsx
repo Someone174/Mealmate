@@ -32,6 +32,7 @@ import WeeklyCalendar from '@/components/mealmate/WeeklyCalendar';
 import GroceryList from '@/components/mealmate/GroceryList';
 import PreferencesModal from '@/components/mealmate/PreferencesModal';
 import MealPlannerChat from '@/components/mealmate/MealPlannerChat';
+import NutritionWidget from '@/components/mealmate/NutritionWidget';
 import { toast, Toaster } from 'sonner';
 
 export default function Dashboard() {
@@ -168,8 +169,8 @@ export default function Dashboard() {
     const allPrefs = [...dietaryPrefs, ...cuisinePrefs];
     const budget = user.preferences?.weeklyBudget || 500;
     const servings = user.preferences?.servings || 2;
-    const usedIds = Object.values(plan).flatMap(dayMeals => 
-      Object.values(dayMeals).map(r => r.id)
+    const usedIds = Object.values(plan).flatMap(dayMeals =>
+      Object.values(dayMeals).filter(Boolean).map(r => r.id).filter(Boolean)
     );
 
     const newRecipe = getRandomRecipe(mealType, allPrefs, usedIds, budget, servings);
@@ -250,7 +251,10 @@ export default function Dashboard() {
     const cuisinePrefs = newPrefs.cuisines || [];
     const budget = newPrefs.weeklyBudget || 500;
     const servings = newPrefs.servings || 2;
-    const newPlan = generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
+    const dbRaw = getAllRecipes();
+    const newPlan = dbRaw.length >= 21
+      ? generateWeeklyPlanFromDBRecipes(dbRaw, [...dietaryPrefs, ...cuisinePrefs])
+      : generateWeeklyPlan(dietaryPrefs, cuisinePrefs, budget, servings);
     setPlan(newPlan);
     saveMealPlan(user, newPlan);
     
@@ -457,6 +461,9 @@ export default function Dashboard() {
               </div>
             </motion.div>
             
+            {/* Nutrition Summary */}
+            <NutritionWidget plan={plan} />
+
             {/* Weekly Calendar */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}

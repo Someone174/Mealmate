@@ -45,7 +45,7 @@ export default function Recipes() {
           setRecipe(foundRecipe);
           setTimerMinutes(foundRecipe.prepTime);
           if (currentUser) {
-            setFavorite(isFavorite(currentUser.username, recipeId));
+            setFavorite(isFavorite(currentUser, recipeId));
           }
         }
       }
@@ -91,11 +91,11 @@ export default function Recipes() {
     }
     
     if (favorite) {
-      removeFavorite(user.username, recipeId);
+      removeFavorite(user, recipeId);
       setFavorite(false);
       toast.success('Removed from favorites');
     } else {
-      addFavorite(user.username, recipeId);
+      addFavorite(user, recipeId);
       setFavorite(true);
       toast.success('Added to favorites! ❤️');
     }
@@ -205,8 +205,12 @@ export default function Recipes() {
           className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 mb-6"
         >
           <div className="flex flex-col md:flex-row gap-6">
-            <div className="w-32 h-32 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-3xl flex items-center justify-center text-7xl flex-shrink-0 mx-auto md:mx-0">
-              {recipe.image}
+            <div className="w-32 h-32 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-3xl flex items-center justify-center text-7xl flex-shrink-0 mx-auto md:mx-0 overflow-hidden">
+              {recipe.image && recipe.image.startsWith('http') ? (
+                <img src={recipe.image} alt={recipe.name} className="w-full h-full object-cover" />
+              ) : (
+                recipe.image || '🍽️'
+              )}
             </div>
             
             <div className="flex-1 text-center md:text-left">
