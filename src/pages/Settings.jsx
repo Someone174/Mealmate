@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, User, ChefHat, Database, Bell, Trash2, Download, AlertCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, User, ChefHat, Database, Bell, Trash2, Download, AlertCircle, Loader2, Palette, Sun, Moon, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,6 +13,7 @@ import {
   logoutUser,
 } from '@/components/mealmate/LocalStorageService';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { useTheme } from '@/lib/ThemeContext';
 
 const dietaryOptions = [
   { id: 'vegetarian', label: 'Vegetarian', icon: '🥗' },
@@ -35,6 +36,7 @@ const cuisineOptions = [
 
 export default function Settings() {
   const navigate = useNavigate();
+  const { theme, resolved: resolvedTheme, setTheme } = useTheme();
   const [user, setUser] = useState(null);
   const [prefs, setPrefs] = useState({ dietary: [], cuisines: [], servings: 2, weeklyBudget: 500 });
   const [savingPrefs, setSavingPrefs] = useState(false);
@@ -140,20 +142,20 @@ export default function Settings() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Toaster position="top-center" richColors />
+    <div className="min-h-screen surface-app">
+      <Toaster position="top-center" richColors theme={resolvedTheme} />
 
-      <nav className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-gray-100">
+      <nav className="sticky top-0 z-30 surface-nav backdrop-blur-xl border-b">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link to={createPageUrl('Dashboard')} className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-800 text-sm">
+          <Link to={createPageUrl('Dashboard')} className="inline-flex items-center gap-2 text-muted hover:text-strong text-sm">
             <ArrowLeft className="w-4 h-4" />
             Dashboard
           </Link>
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center">
-              <span className="text-white">🍽️</span>
+              <ChefHat className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-gray-800">Settings</span>
+            <span className="font-bold text-strong">Settings</span>
           </div>
         </div>
       </nav>
@@ -161,16 +163,17 @@ export default function Settings() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           <Tabs defaultValue="profile" className="w-full">
-            <TabsList className="grid grid-cols-4 max-w-2xl mx-auto rounded-2xl bg-white border border-gray-100 p-1">
+            <TabsList className="grid grid-cols-5 max-w-3xl mx-auto rounded-2xl surface-card border p-1">
               <TabsTrigger value="profile" className="rounded-xl"><User className="w-4 h-4 mr-1.5" />Profile</TabsTrigger>
-              <TabsTrigger value="preferences" className="rounded-xl"><ChefHat className="w-4 h-4 mr-1.5" />Preferences</TabsTrigger>
-              <TabsTrigger value="notifications" className="rounded-xl"><Bell className="w-4 h-4 mr-1.5" />Notifications</TabsTrigger>
+              <TabsTrigger value="preferences" className="rounded-xl"><ChefHat className="w-4 h-4 mr-1.5" />Tastes</TabsTrigger>
+              <TabsTrigger value="appearance" className="rounded-xl"><Palette className="w-4 h-4 mr-1.5" />Appearance</TabsTrigger>
+              <TabsTrigger value="notifications" className="rounded-xl"><Bell className="w-4 h-4 mr-1.5" />Alerts</TabsTrigger>
               <TabsTrigger value="data" className="rounded-xl"><Database className="w-4 h-4 mr-1.5" />Data</TabsTrigger>
             </TabsList>
 
             {/* Profile */}
             <TabsContent value="profile" className="mt-6">
-              <section className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
+              <section className="surface-card rounded-3xl p-6 shadow-sm border space-y-4">
                 <h2 className="font-bold text-gray-900 text-lg">Profile</h2>
                 <Field label="Username" value={user.username} />
                 {user.email && <Field label="Email" value={user.email} />}
@@ -184,7 +187,7 @@ export default function Settings() {
 
             {/* Preferences */}
             <TabsContent value="preferences" className="mt-6">
-              <section className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-8">
+              <section className="surface-card rounded-3xl p-6 shadow-sm border space-y-8">
                 <div>
                   <h2 className="font-bold text-gray-900 text-lg mb-4">Dietary preferences</h2>
                   <div className="grid grid-cols-2 gap-2">
@@ -274,9 +277,44 @@ export default function Settings() {
               </section>
             </TabsContent>
 
+            {/* Appearance */}
+            <TabsContent value="appearance" className="mt-6">
+              <section className="surface-card rounded-3xl p-6 shadow-sm border space-y-6">
+                <h2 className="font-bold text-strong text-lg">Theme</h2>
+                <p className="text-sm text-muted">
+                  Choose how MealMate looks. The system option follows your device.
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { id: 'light', label: 'Light', icon: Sun, accent: 'text-amber-500' },
+                    { id: 'dark', label: 'Dark', icon: Moon, accent: 'text-violet-500' },
+                    { id: 'system', label: 'System', icon: Monitor, accent: 'text-emerald-500' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setTheme(opt.id)}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
+                        theme === opt.id
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                      }`}
+                      aria-pressed={theme === opt.id}
+                    >
+                      <opt.icon className={`w-5 h-5 ${opt.accent}`} />
+                      <span className="text-sm font-medium text-body">{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted">
+                  Currently rendering in <span className="font-semibold capitalize">{resolvedTheme}</span> mode.
+                </p>
+              </section>
+            </TabsContent>
+
             {/* Notifications */}
             <TabsContent value="notifications" className="mt-6">
-              <section className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-3">
+              <section className="surface-card rounded-3xl p-6 shadow-sm border space-y-3">
                 <h2 className="font-bold text-gray-900 text-lg">Notifications</h2>
                 <p className="text-gray-500 text-sm">
                   Email digests and grocery-day reminders are on the roadmap. We’ll let you opt in
@@ -290,7 +328,7 @@ export default function Settings() {
 
             {/* Data */}
             <TabsContent value="data" className="mt-6">
-              <section className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
+              <section className="surface-card rounded-3xl p-6 shadow-sm border space-y-4">
                 <h2 className="font-bold text-gray-900 text-lg">Your data</h2>
 
                 <div className="flex items-start justify-between gap-4 p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100">

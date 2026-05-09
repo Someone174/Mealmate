@@ -1,10 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { ArrowRight, Sparkles, ListChecks, Shuffle, Clock, BarChart3, ShoppingBasket, Lock } from 'lucide-react';
+import { ArrowRight, Sparkles, ListChecks, Shuffle, Clock, BarChart3, ShoppingBasket, Lock, ChefHat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { isLoggedIn } from '@/components/mealmate/LocalStorageService';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function Landing() {
   const features = [
@@ -36,20 +37,21 @@ export default function Landing() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/30 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/30 to-white dark:from-gray-950 dark:via-gray-950 dark:to-gray-950">
 
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100">
+      <nav className="fixed top-0 left-0 right-0 z-40 bg-white/80 dark:bg-gray-950/70 backdrop-blur-xl border-b border-gray-100 dark:border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2">
               <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center">
-                <span className="text-white text-xl">🍽️</span>
+                <ChefHat className="w-5 h-5 text-white" />
               </div>
-              <span className="font-bold text-xl text-gray-800">MealMate</span>
+              <span className="font-bold text-xl text-gray-800 dark:text-gray-100">MealMate</span>
             </div>
-            
-            <div className="flex items-center gap-3">
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              <ThemeToggle />
               {isLoggedIn() ? (
                 <Link to={createPageUrl('Dashboard')}>
                   <Button className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-full px-6">
@@ -59,7 +61,7 @@ export default function Landing() {
               ) : (
                 <>
                   <Link to={createPageUrl('SignIn')}>
-                    <Button variant="ghost" className="text-gray-600 hover:text-gray-800">
+                    <Button variant="ghost" className="text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">
                       Login
                     </Button>
                   </Link>
@@ -89,7 +91,7 @@ export default function Landing() {
                 Smart Meal Planning Made Simple
               </div>
               
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-gray-900 leading-tight mb-6">
+              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-gray-900 dark:text-gray-50 leading-tight mb-6">
                 Plan Your{' '}
                 <span className="bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">
                   Delicious Week
@@ -97,7 +99,7 @@ export default function Landing() {
                 in Minutes!
               </h1>
               
-              <p className="text-xl text-gray-600 leading-relaxed mb-8 max-w-lg">
+              <p className="text-xl text-gray-600 dark:text-gray-300 leading-relaxed mb-8 max-w-lg">
                 Smart, personalized meal plans that fit your life – quick recipes, grocery lists, and zero stress. 
                 Finally, the answer to "What's for dinner?"
               </p>
@@ -116,7 +118,7 @@ export default function Landing() {
                 </Link>
               </div>
               
-              <p className="text-sm text-gray-500 mt-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">
                 ✨ No credit card required • 100% free demo
               </p>
             </motion.div>
@@ -130,7 +132,7 @@ export default function Landing() {
               <div className="absolute -top-8 -left-8 w-64 h-64 bg-emerald-200 rounded-full blur-3xl opacity-40" />
               <div className="absolute -bottom-8 -right-8 w-64 h-64 bg-orange-200 rounded-full blur-3xl opacity-40" />
               
-              <div className="relative bg-white rounded-3xl shadow-2xl shadow-gray-200/50 p-8 border border-gray-100">
+              <div className="relative bg-white dark:bg-gray-900 rounded-3xl shadow-2xl shadow-gray-200/50 p-8 border border-gray-100">
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   {['🥗', '🍝', '🥙', '🍜', '🥘', '🍲'].map((emoji, i) => (
                     <motion.div
@@ -196,10 +198,10 @@ export default function Landing() {
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-50 mb-4">
               Why Busy People Love MealMate
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
               We handle the hard parts so you can enjoy delicious, stress-free meals every day.
             </p>
           </motion.div>
@@ -212,17 +214,17 @@ export default function Landing() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.15 }}
-                className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-100/50 border border-gray-100 hover:shadow-2xl hover:-translate-y-1 transition-all group"
+                className="bg-white dark:bg-gray-900 rounded-3xl p-8 shadow-xl shadow-gray-100/50 border border-gray-100 hover:shadow-2xl hover:-translate-y-1 transition-all group"
               >
                 <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
                   <feature.icon className="w-8 h-8 text-white" />
                 </div>
                 
-                <h3 className="text-xl font-bold text-gray-900 mb-3">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-50 mb-3">
                   {feature.title}
                 </h3>
                 
-                <p className="text-gray-600 leading-relaxed">
+                <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
                   {feature.description}
                 </p>
               </motion.div>
@@ -270,8 +272,8 @@ export default function Landing() {
               <Sparkles className="w-6 h-6 text-violet-600" />
             </div>
             <div>
-              <h3 className="font-bold text-xl text-gray-900 mb-2">Upgrade to Pro</h3>
-              <p className="text-gray-600 mb-4">
+              <h3 className="font-bold text-xl text-gray-900 dark:text-gray-50 mb-2">Upgrade to Pro</h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-4">
                 Coming soon: Real-time sync across devices, 1000+ premium recipes, AI-powered nutrition coaching, and family sharing. Get early access!
               </p>
               <Button variant="outline" className="border-violet-300 text-violet-600 hover:bg-violet-100">
@@ -293,11 +295,11 @@ export default function Landing() {
               <span className="font-bold text-xl text-gray-800">MealMate</span>
             </div>
 
-            <p className="text-gray-500 text-sm">
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
               Built with ❤️ for healthy habits
             </p>
 
-            <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap justify-center">
+            <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 flex-wrap justify-center">
               <Link to={createPageUrl('SignIn')} className="hover:text-emerald-600">
                 Sign in
               </Link>

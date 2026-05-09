@@ -1,0 +1,37 @@
+{
+  "name": "MealMate – Weekly meal planning",
+  "short_name": "MealMate",
+  "description": "Personalized weekly meal plans, smart grocery lists, and store price comparison.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#10b981",
+  "categories": ["food", "lifestyle", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Browse recipes",
+      "short_name": "Recipes",
+      "url": "/RecipesBrowse"
+    },
+    {
+      "name": "Open dashboard",
+      "short_name": "Dashboard",
+      "url": "/Dashboard"
+    },
+    {
+      "name": "Settings",
+      "short_name": "Settings",
+      "url": "/Settings"
+    }
+  ]
+}

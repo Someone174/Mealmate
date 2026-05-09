@@ -2,10 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#10b981" />
+    <meta name="theme-color" content="#10b981" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="MealMate" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="color-scheme" content="light dark" />
 
     <title>MealMate – Weekly meal planning made friendly</title>
     <meta
@@ -19,7 +26,7 @@
       property="og:description"
       content="Personalized weekly meal plans, auto grocery lists, and store price comparison."
     />
-    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image" content="/og-image.svg" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="MealMate – Weekly meal planning made friendly" />
@@ -27,7 +34,20 @@
       name="twitter:description"
       content="Personalized weekly meal plans, auto grocery lists, and store price comparison."
     />
-    <meta name="twitter:image" content="/og-image.png" />
+    <meta name="twitter:image" content="/og-image.svg" />
+
+    <script>
+      // Apply persisted theme before paint to avoid a flash of light mode.
+      (function () {
+        try {
+          var stored = localStorage.getItem('mealmate_theme');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = stored === 'dark' || ((stored === 'system' || !stored) && prefersDark);
+          if (isDark) document.documentElement.classList.add('dark');
+          document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+        } catch (_) { /* localStorage may be blocked */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

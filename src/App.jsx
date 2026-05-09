@@ -10,6 +10,9 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ConfigBanner from '@/components/ConfigBanner';
 import CookieConsent from '@/components/CookieConsent';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import ScrollToTop from '@/components/ScrollToTop';
+import { ThemeProvider } from '@/lib/ThemeContext';
+import { ShortcutHelpProvider } from '@/lib/ShortcutHelp';
 import Pricing from './pages/Pricing';
 import Settings from './pages/Settings';
 import Privacy from './pages/Privacy';
@@ -74,17 +77,28 @@ const AuthenticatedApp = () => {
 function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <QueryClientProvider client={queryClientInstance}>
-          <Router>
-            <NavigationTracker />
-            <ConfigBanner />
-            <AuthenticatedApp />
-            <CookieConsent />
-          </Router>
-          <Toaster />
-        </QueryClientProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <QueryClientProvider client={queryClientInstance}>
+            <ShortcutHelpProvider>
+              <Router>
+                <a
+                  href="#main"
+                  className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-3 focus:py-2 focus:rounded-lg focus:bg-emerald-500 focus:text-white focus:shadow-lg"
+                >
+                  Skip to main content
+                </a>
+                <NavigationTracker />
+                <ScrollToTop />
+                <ConfigBanner />
+                <AuthenticatedApp />
+                <CookieConsent />
+              </Router>
+            </ShortcutHelpProvider>
+            <Toaster />
+          </QueryClientProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   )
 }

@@ -16,8 +16,15 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'mealmate_current_user',   // fallback only
   MEAL_PLANS: 'mealmate_plans',
   FAVORITES: 'mealmate_favorites',
-  GROCERY_LISTS: 'mealmate_grocery'
+  GROCERY_LISTS: 'mealmate_grocery',
+  PLAN_HISTORY: 'mealmate_plan_history',
+  CUSTOM_ITEMS: 'mealmate_custom_items',
+  RECIPE_NOTES: 'mealmate_recipe_notes',
+  RECIPE_RATINGS: 'mealmate_recipe_ratings'
 };
+
+// Maximum number of past weekly plans to keep per user.
+const PLAN_HISTORY_LIMIT = 5;
 
 // In-memory cache of the active user, populated by AuthContext on session
 // changes so the synchronous getters used across the UI keep working.
@@ -324,6 +331,153 @@ export const getFavorites = (usernameOrUser) => {
 
 export const isFavorite = (usernameOrUser, recipeId) => {
   return getFavorites(usernameOrUser).includes(recipeId);
+};
+
+// ---------------------------------------------------------------------------
+// Plan history — keeps the last N weekly plans so users can roll back.
+// ---------------------------------------------------------------------------
+
+const readJSON = (key, fallback) => {
+  try {
+    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
+  } catch {
+    return fallback;
+  }
+};
+const writeJSON = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* quota / privacy mode */
+  }
+};
+
+export const pushPlanHistory = (usernameOrUser, plan, label = 'Weekly plan') => {
+  const key = resolveKey(usernameOrUser);
+  if (!key || !plan) return;
+  const all = readJSON(STORAGE_KEYS.PLAN_HISTORY, {});
+  const list = all[key] || [];
+  list.unshift({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    label,
+    savedAt: new Date().toISOString(),
+    plan,
+  });
+  all[key] = list.slice(0, PLAN_HISTORY_LIMIT);
+  writeJSON(STORAGE_KEYS.PLAN_HISTORY, all);
+};
+
+export const getPlanHistory = (usernameOrUser) => {
+  const key = resolveKey(usernameOrUser);
+  if (!key) return [];
+  const all = readJSON(STORAGE_KEYS.PLAN_HISTORY, {});
+  return all[key] || [];
+};
+
+export const removeFromPlanHistory = (usernameOrUser, entryId) => {
+  const key = resolveKey(usernameOrUser);
+  if (!key) return;
+  const all = readJSON(STORAGE_KEYS.PLAN_HISTORY, {});
+  if (!all[key]) return;
+  all[key] = all[key].filter((e) => e.id !== entryId);
+  writeJSON(STORAGE_KEYS.PLAN_HISTORY, all);
+};
+
+export const clearPlanHistory = (usernameOrUser) => {
+  const key = resolveKey(usernameOrUser);
+  if (!key) return;
+  const all = readJSON(STORAGE_KEYS.PLAN_HISTORY, {});
+  delete all[key];
+  writeJSON(STORAGE_KEYS.PLAN_HISTORY, all);
+};
+
+// ---------------------------------------------------------------------------
+// Custom grocery items — items the user adds manually that survive plan
+// regenerations. Stored separately from the auto-compiled list.
+// ---------------------------------------------------------------------------
+
+export const getCustomItems = (usernameOrUser) => {
+  const key = resolveKey(usernameOrUser);
+  if (!key) return [];
+  const all = readJSON(STORAGE_KEYS.CUSTOM_ITEMS, {});
+  return all[key] || [];
+};
+
+export const addCustomItem = (usernameOrUser, item) => {
+  const key = resolveKey(usernameOrUser);
+  if (!key || !item?.item) return [];
+  const all = readJSON(STORAGE_KEYS.CUSTOM_ITEMS, {});
+  const list = all[key] || [];
+  const id = `c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  list.push({
+    id,
+    item: item.item,
+    amount: item.amount || '1',
+    aisle: item.aisle || 'Pantry',
+    checked: false,
+    custom: true,
+  });
+  all[key] = list;
+  writeJSON(STORAGE_KEYS.CUSTOM_ITEMS, all);
+  return list;
+};
+
+export const updateCustomItem = (usernameOrUser, id, patch) => {
+  const key = resolveKey(usernameOrUser);
+  if (!key) return [];
+  const all = readJSON(STORAGE_KEYS.CUSTOM_ITEMS, {});
+  const list = (all[key] || []).map((it) => (it.id === id ? { ...it, ...patch } : it));
+  all[key] = list;
+  writeJSON(STORAGE_KEYS.CUSTOM_ITEMS, all);
+  return list;
+};
+
+export const removeCustomItem = (usernameOrUser, id) => {
+  const key = resolveKey(usernameOrUser);
+  if (!key) return [];
+  const all = readJSON(STORAGE_KEYS.CUSTOM_ITEMS, {});
+  const list = (all[key] || []).filter((it) => it.id !== id);
+  all[key] = list;
+  writeJSON(STORAGE_KEYS.CUSTOM_ITEMS, all);
+  return list;
+};
+
+// ---------------------------------------------------------------------------
+// Recipe notes + ratings — per-user, keyed by recipe id.
+// ---------------------------------------------------------------------------
+
+export const getRecipeNote = (usernameOrUser, recipeId) => {
+  const key = resolveKey(usernameOrUser);
+  if (!key || !recipeId) return '';
+  const all = readJSON(STORAGE_KEYS.RECIPE_NOTES, {});
+  return all[key]?.[recipeId] || '';
+};
+
+export const setRecipeNote = (usernameOrUser, recipeId, note) => {
+  const key = resolveKey(usernameOrUser);
+  if (!key || !recipeId) return;
+  const all = readJSON(STORAGE_KEYS.RECIPE_NOTES, {});
+  if (!all[key]) all[key] = {};
+  if (!note) delete all[key][recipeId];
+  else all[key][recipeId] = note;
+  writeJSON(STORAGE_KEYS.RECIPE_NOTES, all);
+};
+
+export const getRecipeRating = (usernameOrUser, recipeId) => {
+  const key = resolveKey(usernameOrUser);
+  if (!key || !recipeId) return 0;
+  const all = readJSON(STORAGE_KEYS.RECIPE_RATINGS, {});
+  return all[key]?.[recipeId] || 0;
+};
+
+export const setRecipeRating = (usernameOrUser, recipeId, stars) => {
+  const key = resolveKey(usernameOrUser);
+  if (!key || !recipeId) return;
+  const all = readJSON(STORAGE_KEYS.RECIPE_RATINGS, {});
+  if (!all[key]) all[key] = {};
+  if (!stars) delete all[key][recipeId];
+  else all[key][recipeId] = stars;
+  writeJSON(STORAGE_KEYS.RECIPE_RATINGS, all);
 };
 
 // ---------------------------------------------------------------------------

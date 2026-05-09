@@ -82,8 +82,27 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  /* Visible keyboard focus everywhere — overrides default UA outline. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-emerald-500 ring-offset-2 ring-offset-background;
+  }
+
+  /* Selection */
+  ::selection {
+    @apply bg-emerald-500/20 text-emerald-900;
+  }
+  .dark ::selection {
+    @apply bg-emerald-400/30 text-emerald-50;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -95,5 +114,47 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+  }
+}
+
+@layer utilities {
+  /* Auto-contrast surfaces: light by default, dark in .dark scope.
+     Use these on pages that previously hard-coded gray-50/white. */
+  .surface-app {
+    @apply bg-gray-50 dark:bg-gray-950;
+  }
+  .surface-card {
+    @apply bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800;
+  }
+  .surface-nav {
+    @apply bg-white/90 dark:bg-gray-900/90 border-gray-100 dark:border-gray-800;
+  }
+  .text-body {
+    @apply text-gray-700 dark:text-gray-200;
+  }
+  .text-muted {
+    @apply text-gray-500 dark:text-gray-400;
+  }
+  .text-strong {
+    @apply text-gray-900 dark:text-gray-50;
+  }
+
+  /* Hide scrollbar but keep scrolling. */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+}
+
+/* Print styles — applied to grocery list and recipe pages. */
+@media print {
+  .no-print,
+  .print\:hidden {
+    display: none !important;
+  }
+  body {
+    background: white !important;
   }
 }
